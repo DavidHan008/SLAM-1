@@ -1,4 +1,4 @@
-#!C:\VisionPyhton\Project\venv\Scripts\python.exe
+#!C:\Users\test\Desktop\skoli2020f\project\SLAM\venv\Scripts\python.exe
 # EASY-INSTALL-ENTRY-SCRIPT: 'pip==19.0.3','console_scripts','pip3'
 __requires__ = 'pip==19.0.3'
 import re

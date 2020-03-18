@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\VisionPyhton\Project\venv"
+VIRTUAL_ENV="C:\Users\test\Desktop\skoli2020f\project\SLAM\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

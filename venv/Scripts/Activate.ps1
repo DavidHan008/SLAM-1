@@ -27,7 +27,7 @@ function global:deactivate ([switch]$NonDestructive) {
 
 deactivate -nondestructive
 
-$env:VIRTUAL_ENV="C:\VisionPyhton\Project\venv"
+$env:VIRTUAL_ENV="C:\Users\test\Desktop\skoli2020f\project\SLAM\venv"
 
 if (! $env:VIRTUAL_ENV_DISABLE_PROMPT) {
     # Set the prompt to include the env name
