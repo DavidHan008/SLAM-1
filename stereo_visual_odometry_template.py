@@ -78,78 +78,36 @@ class VisualOdometry():
         return np.vstack([q1_pred - q1.T, q2_pred - q2.T]).flatten()
 
     def get_tiled_keypoints(self, img, tile_h, tile_w):
-        def get_kps(x, y):
-            impatch = img[y:y + tile_h, x:x + tile_w]
-            keypoints = self.fastFeatures.detect(impatch)
-            for pt in keypoints:
-                pt.pt = (pt.pt[0] + x, pt.pt[1] + y)
-            if len(keypoints) > 10:
-                keypoints = sorted(keypoints, key=lambda x: -x.response)
-                return keypoints[:10]
-            return keypoints
-
-        h, w = img.shape
-        kp_list = [get_kps(x, y) for y in range(0, h, tile_h) for x in range(0, w, tile_w)]
-        return [kp for sublist in kp_list for kp in sublist]
+        # Split the image into tiles and detect the 10 best keypoints in each tile
+        # Return a 1-D list of all keypoints
+        # Hint: use sorted(keypoints, key=lambda x: -x.response)
+        pass
 
     def track_keypoints(self, img1, img2, kp1, max_error=4):
-        trackpoints1 = np.expand_dims(cv2.KeyPoint_convert(kp1), axis=1)
-        trackpoints2, st, err = cv2.calcOpticalFlowPyrLK(img1, img2, trackpoints1, None, **self.lk_params)
-        trackable = st.astype(bool)
-        under_thresh = np.where(err[trackable] < max_error, True, False)
-
-        trackpoints1 = trackpoints1[trackable][under_thresh]
-        trackpoints2 = np.around(trackpoints2[trackable][under_thresh])
-        h, w = img1.shape
-        in_bounds = np.where(np.logical_and(trackpoints2[:, 1] < h, trackpoints2[:, 0] < w), True, False)
-
-        return trackpoints1[in_bounds], trackpoints2[in_bounds]
+        # Convert the keypoints using cv2.KeyPoint_convert
+        # Use cv2.calcOpticalFlowPyrLK to estimate the keypoint locations in the second frame. self.lk_params contains parameters for this function.
+        # Remove all points which are not trackable, has error over max_error, or where the points moved out of the frame of the second image
+        # Return a list of the original converted keypoints (after removal), and their tracked counterparts
+        pass
 
     def calculate_right_qs(self, q1, q2, disp1, disp2, min_disp=0.0, max_disp=100.0):
-        def get_idxs(q, disp):
-            q_idx = q.astype(int)
-            disp = disp.T[q_idx[:, 0], q_idx[:, 1]]
-            return disp, np.where(np.logical_and(min_disp < disp, disp < max_disp), True, False)
-
-        disp1, idxs1 = get_idxs(q1, disp1)
-        disp2, idxs2 = get_idxs(q2, disp2)
-        in_bounds = np.logical_and(idxs1, idxs2)
-        q1_l, q2_l, disp1, disp2 = q1[in_bounds], q2[in_bounds], disp1[in_bounds], disp2[in_bounds]
-        q1_r, q2_r = np.copy(q1_l), np.copy(q2_l)
-        q1_r[:, 0] -= disp1
-        q2_r[:, 0] -= disp2
-        return q1_l, q1_r, q2_l, q2_r
+        # Get the disparity for each keypoint
+        # Remove all keypoints where disparity is out of bounds
+        # calculate keypoint location in right image by subtracting disparity from x coordinates
+        # return left and right keypoints for both frames
+        pass
 
     def calc_3d(self, q1_l, q1_r, q2_l, q2_r):
-        Q1 = cv2.triangulatePoints(self.P_l, self.P_r, q1_l.T, q1_r.T)
-        Q1 = np.transpose(Q1[:3] / Q1[3])
-        Q2 = cv2.triangulatePoints(self.P_l, self.P_r, q2_l.T, q2_r.T)
-        Q2 = np.transpose(Q2[:3] / Q2[3])
-        return Q1, Q2
+        # Triangulate points from both images with self.P_l and self.P_r
+        pass
 
     def estimate_pose(self, q1, q2, Q1, Q2, max_iter=100):
-        min_error = float('inf')
-        early_termination = 0
-        for _ in range(max_iter):
-            sample_idx = np.random.choice(range(q1.shape[0]), 6)
-            sample_q1, sample_q2, sample_Q1, sample_Q2 = q1[sample_idx], q2[sample_idx], Q1[sample_idx], Q2[sample_idx]
-            in_guess = np.zeros(6)
-            opt_res = least_squares(self.reprojection_residuals, in_guess, method='lm', max_nfev=200,
-                                    args=(sample_q1, sample_q2, sample_Q1, sample_Q2))
-            error = self.reprojection_residuals(opt_res.x, q1, q2, Q1, Q2)
-            error = error.reshape((Q1.shape[0] * 2, 2))
-            error = np.sum(np.linalg.norm(error, axis=1))
-            if error < min_error:
-                min_error = error
-                out_pose = opt_res.x
-                early_termination = 0
-            else:
-                early_termination += 1
-            if early_termination == 5:
-                break
-
-        R, _ = cv2.Rodrigues(out_pose[:3])
-        return self._form_transf(R, out_pose[3:])
+        # Implement RANSAC to estimate the pose using least squares optimization
+        # Sample 6 random point sets from q1, q2, Q1, Q2
+        # Minimize the given residual using least squares to find the optimal transform between the sampled points
+        # Calculate the reprojection error when using the optimal transform with the whole point set
+        # Redo with different sampled points, saving the transform with the lowest error, until max_iter or early termination criteria met
+        pass
 
     def get_pose(self, i):
         img1_l, img2_l = self.images_l[i - 1:i + 1]
@@ -179,7 +137,11 @@ def visualize_paths(verts1, verts2):
     plt.show()
 
 def main():
+<<<<<<< HEAD:stereo_visual_odometry_template.py
+    data_dir = 'KITTI_sequence_2'
+=======
     data_dir = '..//KITTI_sequence_1'
+>>>>>>> 648305125c69d7104b5044bb1da9c7f23c38fe31:stereo_visual_odometry_solution.py
     vo = VisualOdometry(data_dir)
     gt_path = []
     estimated_path = []
