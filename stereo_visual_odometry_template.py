@@ -137,7 +137,11 @@ def visualize_paths(verts1, verts2):
     plt.show()
 
 def main():
+<<<<<<< HEAD:stereo_visual_odometry_template.py
     data_dir = 'KITTI_sequence_2'
+=======
+    data_dir = '..//KITTI_sequence_1'
+>>>>>>> 648305125c69d7104b5044bb1da9c7f23c38fe31:stereo_visual_odometry_solution.py
     vo = VisualOdometry(data_dir)
     gt_path = []
     estimated_path = []
