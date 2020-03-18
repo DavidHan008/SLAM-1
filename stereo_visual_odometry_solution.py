@@ -179,7 +179,7 @@ def visualize_paths(verts1, verts2):
     plt.show()
 
 def main():
-    data_dir = '..//KITTI_sequence_1'
+    data_dir = '..//KITTI_sequence_2'
     vo = VisualOdometry(data_dir)
     gt_path = []
     estimated_path = []
