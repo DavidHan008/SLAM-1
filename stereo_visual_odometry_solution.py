@@ -192,7 +192,7 @@ def main():
             cur_pose = np.matmul(cur_pose, transf)
         gt_path.append((gt_pose[0, 3], gt_pose[2, 3]))
         estimated_path.append((cur_pose[0, 3], cur_pose[2, 3]))
-    print("Hej hej, din haj")
+    print("Hej hej, din hajsgsrsrdrbr")
     visualize_paths(gt_path, estimated_path)
 
 if __name__ == "__main__":
