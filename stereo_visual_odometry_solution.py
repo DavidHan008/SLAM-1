@@ -179,7 +179,7 @@ def visualize_paths(verts1, verts2):
     plt.show()
 
 def main():
-    data_dir = '..//KITTI_sequence_2'
+    data_dir = '..//KITTI_sequence_1'
     vo = VisualOdometry(data_dir)
     gt_path = []
     estimated_path = []
@@ -192,7 +192,7 @@ def main():
             cur_pose = np.matmul(cur_pose, transf)
         gt_path.append((gt_pose[0, 3], gt_pose[2, 3]))
         estimated_path.append((cur_pose[0, 3], cur_pose[2, 3]))
-    print("Hey Ole, din haj")
+    print("Hej hej, din haj")
     visualize_paths(gt_path, estimated_path)
 
 if __name__ == "__main__":
