@@ -193,7 +193,6 @@ def main():
         gt_path.append((gt_pose[0, 3], gt_pose[2, 3]))
         estimated_path.append((cur_pose[0, 3], cur_pose[2, 3]))
     visualize_paths(gt_path, estimated_path)
-    print("hej Alexander")
 
 if __name__ == "__main__":
     main()
