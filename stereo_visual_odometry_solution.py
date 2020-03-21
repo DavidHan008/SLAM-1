@@ -5,6 +5,10 @@ from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
+import glob
+import time
+
+
 
 class VisualOdometry():
     def __init__(self, data_dir):
@@ -95,11 +99,16 @@ class VisualOdometry():
     def track_keypoints(self, img1, img2, kp1, max_error=4):
         trackpoints1 = np.expand_dims(cv2.KeyPoint_convert(kp1), axis=1)
         trackpoints2, st, err = cv2.calcOpticalFlowPyrLK(img1, img2, trackpoints1, None, **self.lk_params)
+
         trackable = st.astype(bool)
         under_thresh = np.where(err[trackable] < max_error, True, False)
 
         trackpoints1 = trackpoints1[trackable][under_thresh]
         trackpoints2 = np.around(trackpoints2[trackable][under_thresh])
+
+
+
+
         h, w = img1.shape
         in_bounds = np.where(np.logical_and(trackpoints2[:, 1] < h, trackpoints2[:, 0] < w), True, False)
 
@@ -151,6 +160,42 @@ class VisualOdometry():
         R, _ = cv2.Rodrigues(out_pose[:3])
         return self._form_transf(R, out_pose[3:])
 
+    def plotKeypoints(self, i):
+        img1_l, img2_l = self.images_l[i - 1:i + 1]
+        kp1_l = self.get_tiled_keypoints(img1_l, 10, 20)
+        img1_l = cv2.drawKeypoints(img1_l, kp1_l, None, color=(0, 255, 0), flags=0)
+        cv2.imshow('image', img1_l)
+        cv2.waitKey(1)
+        time.sleep(1/5000)
+
+    def plotImg(self, img_3d, tMatrix, path, Q1_input):
+        def draw_axis(img, R, t, Q1, K):
+            rotV, _ = cv2.Rodrigues(R)
+            axisPoints, _ = cv2.projectPoints(Q1, rotV, t, K, (0, 0, 0, 0))
+            axisPoints = axisPoints.ravel()
+            imgHeight = img.shape[1]
+            imgWidth = img.shape[0]
+            img = cv2.circle(img,(int(axisPoints[0]+0.5*imgWidth),  int(axisPoints[1]+0.5*imgHeight)), radius=5, color=(0,0,0))
+            return img
+
+        for t in tMatrix:
+            for coords in Q1_input:
+                img_3d = draw_axis(img_3d,t[0:3,0:3], t[0:3,3],coords, self.K_l)
+
+        # print(int(round(tMatrix[0, 3] * 10)+0.5*img_3d.shape[0]), int(round(tMatrix[0, 3] * 10)+0.5*img_3d.shape[1]))
+
+        for p in path:
+            img_3d = cv2.circle(img_3d, ( int(round(p[0]*10)+0.5*img_3d.shape[0]),  int(round(p[1]*10)+0.5*img_3d.shape[1])), radius=10, color=(0, 0, 1))
+        scale_percent = 25  # percent of original size
+        width = int(img_3d.shape[1] * scale_percent / 100)
+        height = int(img_3d.shape[0] * scale_percent / 100)
+        dim = (width, height)
+        img_3dtest = cv2.resize(img_3d,dim, interpolation = cv2.INTER_AREA)
+        cv2.imshow('imageny', img_3dtest)
+        cv2.waitKey(1)
+        time.sleep(1/5000)
+
+
     def get_pose(self, i):
         img1_l, img2_l = self.images_l[i - 1:i + 1]
         kp1_l = self.get_tiled_keypoints(img1_l, 10, 20)
@@ -161,7 +206,7 @@ class VisualOdometry():
         tp1_l, tp1_r, tp2_l, tp2_r = self.calculate_right_qs(tp1_l, tp2_l, self.disparities[i - 1], self.disparities[i])
         Q1, Q2 = self.calc_3d(tp1_l, tp1_r, tp2_l, tp2_r)
 
-        return self.estimate_pose(tp1_l, tp2_l, Q1, Q2)
+        return self.estimate_pose(tp1_l, tp2_l, Q1, Q2), Q1
 
 def visualize_paths(verts1, verts2):
     codes = [Path.LINETO for _ in range(len(verts1))]
@@ -178,22 +223,34 @@ def visualize_paths(verts1, verts2):
 
     plt.show()
 
+
+
+
 def main():
-    data_dir = '..//KITTI_sequence_1'
+    img_3d = np.ones((2048, 2048, 3))  # img is the background image which appears when you run the program
+    data_dir = '..//KITTI_sequence_2'
     vo = VisualOdometry(data_dir)
     gt_path = []
     estimated_path = []
+    collection_of_Q = []
+    collection_of_trans = []
     for i, gt_pose in enumerate(vo.gt_poses):
         print(i)
         if i < 1:
             cur_pose = gt_pose
         else:
-            transf = vo.get_pose(i)
+            transf, Q1 = vo.get_pose(i)
+            collection_of_Q.append(Q1)
             cur_pose = np.matmul(cur_pose, transf)
+            collection_of_trans.append(cur_pose)
+            #vo.plotKeypoints(i)
+
+
         gt_path.append((gt_pose[0, 3], gt_pose[2, 3]))
         estimated_path.append((cur_pose[0, 3], cur_pose[2, 3]))
-    print("Hej hej, din hajsgsrsrdrbr, damn sexy!!!")
+    vo.plotImg(img_3d, collection_of_trans, estimated_path[1:51], collection_of_Q)
     visualize_paths(gt_path, estimated_path)
+    cv2.waitKey()
 
 if __name__ == "__main__":
     main()
