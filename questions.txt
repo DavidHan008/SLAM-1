@@ -2,3 +2,4 @@
 # Hvorfor returnerer get_matches ikke heltal?
 # Hvorfor bruger vi knn i get_matches?
 # How do we determine if tracking was succesful?
+# All coordinates have both positive and negative values ?

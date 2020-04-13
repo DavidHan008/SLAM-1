@@ -27,9 +27,26 @@ def get_matches(kp1, des1, kp2, des2):
     # self.draw_matches(self.images[i - 1], kp1, self.images[i], kp2, good)
     q1 = np.float32([kp1[m.queryIdx].pt for m in good])
     q2 = np.float32([kp2[m.trainIdx].pt for m in good])
+
     return q1, q2
 
+# This method is stolen from stereo_visual_odometry_solution.py on blackboard
+def track_keypoints(img1, img2, kp1, max_error=40):
+    lk_params = dict(winSize=(15, 15),
+                     flags=cv2.MOTION_AFFINE,
+                     maxLevel=3,
+                     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 50, 0.03))
+    trackpoints1 = np.expand_dims(cv2.KeyPoint_convert(kp1), axis=1)
+    trackpoints2, st, err = cv2.calcOpticalFlowPyrLK(img1, img2, trackpoints1, None, **lk_params)
+    trackable = st.astype(bool)
+    under_thresh = np.where(err[trackable] < max_error, True, False)
 
+    trackpoints1 = trackpoints1[trackable][under_thresh]
+    trackpoints2 = np.around(trackpoints2[trackable][under_thresh])
+    h, w = img1.shape
+    in_bounds = np.where(np.logical_and(trackpoints2[:, 1] < h, trackpoints2[:, 0] < w), True, False)
+
+    return trackpoints1[in_bounds], trackpoints2[in_bounds]
 
 # TRACKING
 # ORB Extraction
@@ -52,6 +69,8 @@ def orb_extraction(img):
 
 # Initial Pose Estimation from Previous Frame
 
+
+
 # OR
 
 # Initial Pose Estimation via Global Relocalization
@@ -59,3 +78,7 @@ def orb_extraction(img):
 # Track Local Map
 
 # New KeyFrame Decision
+
+#kp1, des1 = orb_extraction(img_l)
+#kp2, des2 = orb_extraction(img_r)
+#q1, q2 = get_matches(kp1, des1, kp2, des2)
