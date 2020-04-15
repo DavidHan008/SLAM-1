@@ -2,6 +2,7 @@ from tracking import *
 from visual_odometry_solution_methods import *
 
 
+#TODO: Make this method generic
 def show_image(img1, points1, img2, points2):
     img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
     for u, v in points1:
@@ -13,6 +14,7 @@ def show_image(img1, points1, img2, points2):
     cv2.imshow("right", img2)
     cv2.waitKey()
 
+
 def find_intersection(array1, array2):
     nrows, ncols = array1.shape
     dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
@@ -22,43 +24,59 @@ def find_intersection(array1, array2):
     trackable_points_time0 = trackable_points_time0.view(array1.dtype).reshape(-1, ncols)
     return trackable_points_time0, indx1, indx2
 
-def find_index_from_array1_in_array2(array1, array2):
+
+# Returns the indices as array2[array1]
+def extract_indices(array1, array2):
     right_idx = []
 
     for i in range(len(array1)):
         for j in range(len(array2)):
-            if array2[j][0] == array1[i][0] and array2[j][1] == \
-                    array1[i][1]:
+            if array2[j][0] == array1[i][0] and array2[j][1] == array1[i][1]:
                 right_idx.append(j)
                 break
     return right_idx
 
-leftimages = load_images("../KITTI_sequence_1/image_l")
-rightimages = load_images("../KITTI_sequence_1/image_r")
-K_l, P_l, K_r, P_r = load_calib("../KITTI_sequence_1/calib.txt")
 
-kp1_l, des1_l = orb_extraction(leftimages[0])
+def main():
+    image_path = "../KITTI_sequence_1/"
 
-points_left_right_time0, points_right_time0 = track_keypoints(leftimages[0],rightimages[0], kp1_l)
-points_left_time0, points_left_time1 = track_keypoints(leftimages[0], leftimages[1], kp1_l)
+    # Load the images of the left and right camera
+    leftimages = load_images(os.path.join(image_path, "image_l"))
+    rightimages = load_images(os.path.join(image_path, "image_r"))
 
-trackable_points_time0, indx1, indx2 = find_intersection(points_left_right_time0, points_left_time0)
+    # Load K and P from the calibration file
+    K_l, P_l, K_r, P_r = load_calib("../KITTI_sequence_1/calib.txt")
 
-trackpoints_left = points_left_right_time0[indx1]
+    # Find the keypoints and descriptors of the first image in the left camera
+    kp1_l, des1_l = orb_extraction(leftimages[0])
 
-right_idx = find_index_from_array1_in_array2(trackpoints_left, points_left_right_time0)
+    # Find which keypoints are trackable between left and right image at time = 0
+    points_left_right_time0, points_right_time0 = track_keypoints(leftimages[0],rightimages[0], kp1_l)
 
-trackpoints_right = points_right_time0[right_idx]
+    # Find which keypoints are trackable between left image at time = 0 and left image at time = 1
+    points_left_time0, points_left_time1 = track_keypoints(leftimages[0], leftimages[1], kp1_l)
+
+    # Find the intersection between the trackable points
+    trackable_points_time0, indx1, indx2 = find_intersection(points_left_right_time0, points_left_time0)
+
+    # The trackable points seen from the left camera
+    trackpoints_left = points_left_right_time0[indx1]
+
+    right_idx = extract_indices(trackpoints_left, points_left_right_time0)
+
+    # The trackable points as seen from the right camera
+    trackpoints_right = points_right_time0[right_idx]
+
+    # Triangulate the common points of all 3 views
+    triangulatedPts = triangulate_points(np.transpose(trackpoints_left), np.transpose(trackpoints_right), P_l, P_r)
+
+    #points_left_time1
 
 
-triangluatedPts1 = triangulate_points(np.transpose(trackpoints_left), np.transpose(trackpoints_right), P_l, P_r)  # All coordinates have both positive and negative values ?
-
-print(triangluatedPts1)
-
-show_image(leftimages[0],trackpoints_left, rightimages[0], trackpoints_right)
 
 
 
+    show_image(leftimages[0],trackpoints_left, rightimages[0], trackpoints_right)
 
 
 # for i in triangluatedPts1:
