@@ -2,6 +2,16 @@ from tracking import *
 from visual_odometry_solution_methods import *
 
 
+def get_descriptors(kp_id, kp, des):
+    des_res = []
+    for i in range(len(kp_id)):
+        for j in range(len(kp)):
+            if kp_id[i][0] == kp[j].pt[0] and kp_id[i][1] == kp[j].pt[1]:
+                des_res.append(des[j])
+                break
+    return des_res
+
+
 #TODO: Make this method generic
 def show_image(img1, points1, img2, points2):
     img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
@@ -10,8 +20,8 @@ def show_image(img1, points1, img2, points2):
     img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
     for u, v in points2:
         cv2.circle(img2, (u, v), 5, (0, 0, 255), -1, cv2.LINE_AA)
-    cv2.imshow("left", img1)
-    cv2.imshow("right", img2)
+    cv2.imshow("Time 1", img1)
+    cv2.imshow("Time 0", img2)
     cv2.waitKey()
 
 
@@ -50,6 +60,9 @@ def main():
     # Find the keypoints and descriptors of the first image in the left camera
     kp1_l, des1_l = orb_extraction(leftimages[0])
 
+    temp_kp = kp1_l[23]
+    temp_des = des1_l[23]
+
     # Find which keypoints are trackable between left and right image at time = 0
     points_left_right_time0, points_right_time0 = track_keypoints(leftimages[0],rightimages[0], kp1_l)
 
@@ -70,15 +83,17 @@ def main():
     # Triangulate the common points of all 3 views
     triangulatedPts = triangulate_points(np.transpose(trackpoints_left), np.transpose(trackpoints_right), P_l, P_r)
 
-    #points_left_time1
+    # show_image(leftimages[0],trackpoints_left, rightimages[0], trackpoints_right)
+
+    kp2, des2 = orb_extraction(leftimages[1])
+
+    des_t1 = get_descriptors(trackpoints_left, kp1_l, des1_l)
+
+    # get_matches(trackpoints_left, des_t1, kp2, des2)
 
 
-
-
-
-    show_image(leftimages[0],trackpoints_left, rightimages[0], trackpoints_right)
-
-
+if __name__ == '__main__':
+    main()
 # for i in triangluatedPts1:
 #     print(i)
 

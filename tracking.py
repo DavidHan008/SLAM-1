@@ -27,8 +27,10 @@ def get_matches(kp1, des1, kp2, des2):
     # self.draw_matches(self.images[i - 1], kp1, self.images[i], kp2, good)
     q1 = np.float32([kp1[m.queryIdx].pt for m in good])
     q2 = np.float32([kp2[m.trainIdx].pt for m in good])
+    out_des1 = [m.queryIdx for m in good]
+    out_des2 = [m.trainIdx for m in good]
 
-    return q1, q2
+    return q1, q2, out_des1, out_des2
 
 # This method is stolen from stereo_visual_odometry_solution.py on blackboard
 def track_keypoints(img1, img2, kp1, max_error=40):
