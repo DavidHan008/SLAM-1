@@ -1,5 +1,6 @@
 from tracking import *
 from visual_odometry_solution_methods import *
+import cv2
 
 
 def get_descriptors(kp_id, kp, des):
@@ -7,9 +8,17 @@ def get_descriptors(kp_id, kp, des):
     for i in range(len(kp_id)):
         for j in range(len(kp)):
             if kp_id[i][0] == kp[j].pt[0] and kp_id[i][1] == kp[j].pt[1]:
-                des_res.append(des[j])
+                for k in range(len(des[j])):
+                    des_res.append(des[j][k])
                 break
+    des_res = np.reshape(des_res, (-1,32))
     return des_res
+
+def from_imagecoords_to_keypoints(q):
+    return_array = []
+    for u,v in q:
+        return_array.append(cv2.KeyPoint(u,v,31.0))
+    return return_array
 
 
 #TODO: Make this method generic
@@ -86,10 +95,9 @@ def main():
     # show_image(leftimages[0],trackpoints_left, rightimages[0], trackpoints_right)
 
     kp2, des2 = orb_extraction(leftimages[1])
-
     des_t1 = get_descriptors(trackpoints_left, kp1_l, des1_l)
-
-    # get_matches(trackpoints_left, des_t1, kp2, des2)
+    trackpoints_left = from_imagecoords_to_keypoints(trackpoints_left)
+    img1, img2 = get_matches(trackpoints_left, des_t1, kp2, des2)
 
 
 if __name__ == '__main__':
