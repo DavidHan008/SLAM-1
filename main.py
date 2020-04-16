@@ -10,31 +10,28 @@ def get_tiled_keypoints(img, tile_h, tile_w):
         keypoints, des = orb_extraction(impatch)
         for pt in keypoints:
             pt.pt = (pt.pt[0] + x, pt.pt[1] + y)
+        if len(keypoints) > 50:
+            test = zip(keypoints, des)
+            testSort = sorted(test, key=lambda x: -x[0].response)
+            keypoints, des = zip(*testSort)
+            return keypoints[:50], des[:50]
         if len(keypoints) >= 1:
             return keypoints, des
         return [], []
     h, w = img.shape
     kp_list = []
     des = []
-
-    cnt = 0
     for y in range(0, h, tile_h):
         for x in range(0, w, tile_w):
             kp1, des1 = get_kps(x, y)
-            cnt += len(kp1)
-            kp_list.append(kp1)
-            des.append(des1)
-    des_res = []
-    kp0 = []
-    for k in range(cnt):
-        print(np.shape(des[k]))
-        if len(des[k]) != 0:
-            for m in range(len(des[k])):
-                des_res.append(des[k][m])
-            kp0.append(kp_list[k])
-    des_res2 = np.reshape(des_res, (-1, 32))
-    kp0 = kp0[0]
-    return kp0, des_res2
+            kp_list.extend(kp1)
+            des.extend(des1)
+    des = [kp for sublist in des for kp in sublist]
+    des = np.reshape(des,(-1,32))
+    frame = cv2.drawKeypoints(img, kp_list, np.array([]), (0, 0, 255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    cv2.imshow("hej", frame)
+    cv2.waitKey()
+    return kp_list, des
 
 # Calculates Rotation Matrix given euler angles.
 # Stolen from https://www.learnopencv.com/rotation-matrix-to-euler-angles/
@@ -66,8 +63,9 @@ def get_descriptors(kp_id, kp, des):
             if kp_id[i][0] == kp[j].pt[0] and kp_id[i][1] == kp[j].pt[1]:
                 if des[j] is None:
                     continue
-                for k in range(len(des[j])):
-                    des_res.append(des[j][k])
+                # for k in range(len(des[j])):
+                #     des_res.append(des[j][k])
+                des_res.extend(des[j])
                 break
     des_res = np.reshape(des_res, (-1, 32))
     return des_res
@@ -83,17 +81,17 @@ def from_imagecoords_to_keypoints(q):
 def show_image(img1, points1, img2, points2):
     colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (255,0,255), (255,255,0),(0,255,255), (125,125,0)]
     cnt = 0
-    img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
+    imgfirst = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
     for u, v in points1:
-        cv2.circle(img1, (u, v), 2, colors[cnt%len(colors)], -1, cv2.LINE_AA)
+        cv2.circle(imgfirst, (u, v), 2, colors[cnt%len(colors)], -1, cv2.LINE_AA)
         cnt +=1
-    img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
+    imgsecond = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
     cnt = 0
     for u, v in points2:
-        cv2.circle(img2, (u, v), 3, colors[cnt%len(colors)], -1, cv2.LINE_AA)
+        cv2.circle(imgsecond, (u, v), 3, colors[cnt%len(colors)], -1, cv2.LINE_AA)
         cnt +=1
-    cv2.imshow("Time 1", img1)
-    cv2.imshow("Time 0", img2)
+    cv2.imshow("Time 1", imgfirst)
+    cv2.imshow("Time 0", imgsecond)
     cv2.waitKey(250)
 
 
@@ -142,15 +140,9 @@ def main():
 
     tMat = np.eye(4)
     for i in range(len(leftimages)-1):
-
+        # get keypoints and desciptors
         kp1_l, des1_l = get_tiled_keypoints(leftimages[i],100, 200)#orb_extraction(leftimages[i])
-        # print(np.shape(kp1_l), np.shape(des1_l))
-        # pikkp, pikdes = orb_extraction(leftimages[i])
-        # print("main:")
-        # print(pikkp)
-        # print(pikdes)
-        # print(np.shape(pikkp))
-        # print(np.shape(pikdes))
+        kp2, des2 = get_tiled_keypoints(leftimages[i+1],100, 200)
 
         # Find which keypoints are trackable between left and right image at time = 0
         points_left_right_time0, points_right_time0 = track_keypoints(leftimages[i],rightimages[i], kp1_l)
@@ -158,20 +150,19 @@ def main():
         # Triangulate the common points of all 3 views
         triangulatedPts = triangulate_points(np.transpose(points_left_right_time0), np.transpose(points_right_time0), P_l, P_r)
 
-        show_image(leftimages[i], points_left_right_time0, rightimages[i], points_right_time0)
-
-        kp2, des2 = get_tiled_keypoints(leftimages[i+1],100, 200)
-
+        # show_image(leftimages[i], points_left_right_time0, rightimages[i], points_right_time0)
 
         des_t1 = get_descriptors(points_left_right_time0, kp1_l, des1_l)
         points_left_right_time0 = from_imagecoords_to_keypoints(points_left_right_time0)
-        #print(np.shape(des_t1))
 
         # PROBLEM HERUNDER
         img1, img2 = get_matches(points_left_right_time0, des_t1, kp2, des2)
 
 
         newtriangulated_points = get3DPointsFrom2D(img1, triangulatedPts, points_left_right_time0)
+        # print("tri points:" , np.shape(newtriangulated_points))
+        # print("2d points: ", np.shape(img2))
+        # print("hmm", np.shape(K_l))
         _, rvecs, tvecs, _ = cv2.solvePnPRansac(newtriangulated_points, img2, K_l, np.array([]))
 
         rotm = eulerAnglesToRotationMatrix(rvecs)

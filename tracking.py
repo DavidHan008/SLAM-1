@@ -15,10 +15,10 @@ def get_matches(kp1, des1, kp2, des2):
     index_params = dict(algorithm=FLANN_INDEX_LSH, table_number=6, key_size=12, multi_probe_level=1)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(indexParams=index_params, searchParams=search_params)
-    print("Length of kp1: ", len(kp1))
-    print("Length of kp2: ", len(kp2))
-    print("Length of des1: ", len(des1))
-    print("Length of des2: ", len(des2))
+    # print("Length of kp1: ", len(kp1))
+    # print("Length of kp2: ", len(kp2))
+    # print("Length of des1: ", len(des1))
+    # print("Length of des2: ", len(des2))
     matches = flann.knnMatch(des1, des2, k=2)
     # good = [m for m, n in matches if m.distance < 0.7 * n.distance]
     good = []
