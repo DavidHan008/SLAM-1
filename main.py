@@ -42,6 +42,7 @@ def orb_detector_using_tiles(image, max_number_of_kp = 20, overlap_div = 2, heig
     #     set_list.add(temp)
     #
     # print(set_list)
+    # kp_list = np.ascontiguousarray(kp_list)
     return kp_list, des
 
 def orb_extraction_detect(img):
@@ -63,6 +64,45 @@ def orb_extraction_compute(img, kp):
     return kp, des
 
 
+def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_points_right, descriptors_right):
+    # https://docs.opencv.org/master/d1/de0/tutorial_py_feature_homography.html
+    FLANN_INDEX_LSH = 6
+    index_params = dict(algorithm=FLANN_INDEX_LSH, table_number=6, key_size=12, multi_probe_level=1)
+    search_params = dict(checks=50)
+    flann = cv2.FlannBasedMatcher(indexParams=index_params, searchParams=search_params)
+    matches = flann.knnMatch(descriptors_left, descriptors_right, k=2)
+    good = []
+    try:
+        for m, n in matches:
+            if m.distance < 0.7 * n.distance:  # 0.7
+                good.append(m)
+    except ValueError:
+        pass
+
+    pts_left = np.asarray([key_points_left[m.queryIdx].pt for m in good])
+    pts_right = np.asarray([key_points_right[m.trainIdx].pt for m in good])
+
+    des_left = np.asarray([descriptors_left[m.queryIdx] for m in good])
+    des_right = np.asarray([descriptors_right[m.trainIdx] for m in good])
+
+    F, mask = cv2.findFundamentalMat(pts_left, pts_right, cv2.FM_LMEDS)
+
+    # pts_left = pts_left[mask.ravel()==1]
+    # pts_right = pts_right[mask.ravel()==1]
+    #
+    # des_left = des_left[mask.ravel()==1]
+    # des_right = des_right[mask.ravel()==1]
+
+    distances = []
+    for i in range(len(pts_left)):
+        dist = cv2.sampsonDistance(pts_left[i], pts_right[i], F)
+        if dist < 1000:
+            distances.append(True)
+        else:
+            distances.append(False)
+
+
+    return pts_left[distances], pts_right[distances], des_left[distances], des_right[distances]
 
 
 def track_keypoints_left_to_right(image_left, image_right, key_points_left, descriptors_left, max_error = 500):
@@ -103,6 +143,9 @@ def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i1, d
         pass
     Q1 = np.asarray([triangulated_3D_points[m.queryIdx] for m in good])
     q2 = np.asarray([keypoints_left_time_i1[m.trainIdx].pt for m in good])
+    #
+    # Q1 = np.ascontiguousarray(Q1)
+    # q2 = np.ascontiguousarray(q2)
     return q2, Q1
 
 
@@ -165,6 +208,8 @@ def sort_3D_points(triangulated_3D_point, close_def_in_m = 20, far_def_in_m = 20
 
     close_3D_point = np.where(triangulated_3D_point[:,2] <= close_def_in_m, True, False)
     far_3D_points = np.bitwise_not(close_3D_point)
+    # close_3D_point = np.ascontiguousarray(close_3D_point)
+    # far_3D_points = np.ascontiguousarray(far_3D_points)
     return close_3D_point, far_3D_points
 
 
@@ -185,33 +230,45 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
     #       np.sum(close_3D_points_index), np.sum(far_3D_points_index), np.shape(K_left))
 
     # konverter til point 3f
-    print(trackable_3D_points_time_i)
-    print("\n\n\n")
-    print(trackable_left_imagecoordinates_time_i1)
+    # print(trackable_3D_points_time_i)
+    # print("\n\n\n")
+    # print(trackable_left_imagecoordinates_time_i1)
 
-
-    if sum(close_3D_points_index) > 10 and sum(far_3D_points_index) > 10:
-        _, _, translation_vector, _ = cv2.solvePnPRansac(trackable_3D_points_time_i[close_3D_points_index],
-                                                         trackable_left_imagecoordinates_time_i1[close_3D_points_index],
+    if sum(close_3D_points_index) > 1000000 and sum(far_3D_points_index) > 10:
+        image_point = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[close_3D_points_index])
+        world_coord = np.ascontiguousarray(trackable_3D_points_time_i[close_3D_points_index])
+        _, _, translation_vector, _ = cv2.solvePnPRansac(world_coord,
+                                                         image_point,
                                                          K_left,
-                                                         np.zeros(5), rvec, tvec, useExtrinsicGuess = True)  # ?? tomt array
+                                                         np.zeros(5))
+                                                        #, rvec, tvec, useExtrinsicGuess = True)  # ?? tomt array
 
-        _, rotation_vector, _, _ = cv2.solvePnPRansac(trackable_3D_points_time_i[far_3D_points_index],  # far 3D points
-                                                      trackable_left_imagecoordinates_time_i1[far_3D_points_index],
+        _, rotation_vector, _, _ = cv2.solvePnPRansac(world_coord,
+                                                     image_point,
                                                       K_left,
-                                                      np.zeros(5), rvec, tvec, useExtrinsicGuess = True)  # ?? tomt array
+                                                      np.zeros(5))
+                                                    #, rvec, tvec, useExtrinsicGuess = True)  # ?? tomt array
     else:
-        _, rotation_vector, translation_vector, _ = cv2.solvePnPRansac(trackable_3D_points_time_i,
-                                                      trackable_left_imagecoordinates_time_i1, K_left, np.zeros(5),
-                                                       rvec, tvec,  useExtrinsicGuess = True)
+        track3dPoints = np.ascontiguousarray(trackable_3D_points_time_i)
+        track2dPoints = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1).reshape((-1,1,2))
+        _, rotation_vector, translation_vector, _ = cv2.solvePnPRansac(track3dPoints,
+                                                                       track2dPoints, K_left,
+                                                                       np.zeros(5), rvec, tvec, useExtrinsicGuess = True)
+        # , rvec, tvec,  useExtrinsicGuess = True)
+
+        #_, rotation_vector, translation_vector, _ = cv2.solvePnPRansac(trackable_3D_points_time_i,
+        #                                              trackable_left_imagecoordinates_time_i1, K_left, np.zeros(5))
+                                                      #, rvec, tvec,  useExtrinsicGuess = True)
 
     return translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector), rotation_vector, translation_vector
 
 def main():
-    image_path = "../KITTI_sequence_2/"
+    # C:\Users\Ole\Desktop\Project\dataset\sequences
+    # image_path = "../KITTI_sequence_2/"
+    image_path = "../dataset/sequences/06/"
     # Load the images of the left and right camera
-    leftimages = load_images(os.path.join(image_path, "image_l"))
-    rightimages = load_images(os.path.join(image_path, "image_r"))
+    leftimages = load_images(os.path.join(image_path, "image_0"))
+    rightimages = load_images(os.path.join(image_path, "image_1"))
 
     # Load K and P from the calibration file
     K_left, P_left, _, P_right = load_calib(image_path+"calib.txt")
@@ -220,20 +277,33 @@ def main():
     camera_frame = np.eye(4)
     rvec = np.array([0,0,0])
     tvec = np.array([0,0,0])
+    trans_old = np.eye(4)
 
     # key_points_left_time_i, descriptors_left_time_i = get_descriptors_and_keypoints(leftimages[0])
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0])
     for i in range(len(leftimages)-1):
+        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i])
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1])
         # key_points_left_time_i1, descriptors_left_time_i1 = get_descriptors_and_keypoints(leftimages[i+1])
 
         trackable_keypoints_left_time_i, trackable_descriptors_left_time_i, \
         trackable_keypoints_right_time_i = track_keypoints_left_to_right(leftimages[i], rightimages[i],
-                                                                         key_points_left_time_i,
-                                                                         descriptors_left_time_i)
+                                                                                 key_points_left_time_i,
+                                                                                 descriptors_left_time_i)
+
+
+        # trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, \
+        # trackable_descriptors_left_time_i, trackable_descriptors_right_time_i = track_keypoints_left_to_right_new(key_points_left_time_i,
+        #                                   descriptors_left_time_i, key_points_right_time_i, descriptors_right_time_i)
+
+
 
         triangulated_3D_points_time_i = triangulate_points_local(trackable_keypoints_left_time_i,
                                                                  trackable_keypoints_right_time_i, P_left, P_right)
+
+        # print(trackable_keypoints_left_time_i)
+        # print(trackable_keypoints_right_time_i)
+
 
         trackable_left_imagecoordinates_time_i1, trackable_3D_points_time_i \
             = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i,
@@ -241,11 +311,25 @@ def main():
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i)
 
-        transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
-                                                                trackable_left_imagecoordinates_time_i1,
-                                                                close_3D_points_index, far_3D_points_index, K_left, rvec, tvec)
+        if len(trackable_3D_points_time_i) > 4:
+            transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
+                                                                    trackable_left_imagecoordinates_time_i1,
+                                                                    close_3D_points_index, far_3D_points_index, K_left, rvec, tvec)
+        else:
+            print("RUNK")
+            transformation_matrix = np.eye(4)
 
-        camera_frame = np.matmul(camera_frame, transformation_matrix)
+        if abs(transformation_matrix[2,3]) < 1000:
+            trans_old = transformation_matrix
+            camera_frame = np.matmul(camera_frame, transformation_matrix)
+            f = open("path.txt", "a")
+            f.write(str(camera_frame[0,3])+"," + str(camera_frame[2,3])+"\n")
+            f.close()
+        else:
+            camera_frame = np.matmul(camera_frame, trans_old)
+            f = open("path.txt", "a")
+            f.write(str(camera_frame[0,3])+"," + str(camera_frame[2,3])+"\n")
+            f.close()
 
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1

@@ -9,3 +9,5 @@
 
 #hvorfor er pt i keyvalues ikke integers?
 #hvorfor
+
+#TODO: Save all of the previous transformation matrices
