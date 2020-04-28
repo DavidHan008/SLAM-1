@@ -185,25 +185,45 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
     #       np.sum(close_3D_points_index), np.sum(far_3D_points_index), np.shape(K_left))
 
     # konverter til point 3f
-    print(trackable_3D_points_time_i)
+    """
+    print(trackable_3D_points_time_i[far_3D_points_index])
+    print(trackable_left_imagecoordinates_time_i1[far_3D_points_index])
+    """
     print("\n\n\n")
-    print(trackable_left_imagecoordinates_time_i1)
+    print(np.shape(trackable_3D_points_time_i[far_3D_points_index]))
+    print(np.shape(trackable_left_imagecoordinates_time_i1[far_3D_points_index]))
+    #print(far_3D_points_index[1:100])
 
+    if sum(close_3D_points_index) > 10000000000000000000000000 and sum(far_3D_points_index) > 10:
+        closeTrack3d = np.ascontiguousarray(trackable_3D_points_time_i[close_3D_points_index])
+        closeTrack2d = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[close_3D_points_index])
+        _, _, translation_vector, _ = cv2.solvePnPRansac(closeTrack3d,
+                                                         closeTrack2d,
+                                                          K_left,
+                                                         np.zeros(5))  # ?? tomt array
 
-    if sum(close_3D_points_index) > 10 and sum(far_3D_points_index) > 10:
-        _, _, translation_vector, _ = cv2.solvePnPRansac(trackable_3D_points_time_i[close_3D_points_index],
-                                                         trackable_left_imagecoordinates_time_i1[close_3D_points_index],
-                                                         K_left,
-                                                         np.zeros(5), rvec, tvec, useExtrinsicGuess = True)  # ?? tomt array
+        #_, _, translation_vector, _ = cv2.solvePnPRansac(trackable_3D_points_time_i[close_3D_points_index],
+        #                                                 trackable_left_imagecoordinates_time_i1[close_3D_points_index],
+        #                                                 K_left,
+        #                                                 np.zeros(5))  # ?? tomt array
 
-        _, rotation_vector, _, _ = cv2.solvePnPRansac(trackable_3D_points_time_i[far_3D_points_index],  # far 3D points
-                                                      trackable_left_imagecoordinates_time_i1[far_3D_points_index],
+        farTrack3d = np.ascontiguousarray(trackable_3D_points_time_i[far_3D_points_index])
+        farTrack2d = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[far_3D_points_index])
+        _, rotation_vector, _, _ = cv2.solvePnPRansac(farTrack3d,  # far 3D points
+                                                      farTrack2d,
                                                       K_left,
-                                                      np.zeros(5), rvec, tvec, useExtrinsicGuess = True)  # ?? tomt array
+                                                      np.zeros(5))  # ?? tomt array
+
+        #_, rotation_vector, _, _ = cv2.solvePnPRansac(trackable_3D_points_time_i[far_3D_points_index],  # far 3D points
+        #                                              trackable_left_imagecoordinates_time_i1[far_3D_points_index],
+        #                                              K_left,
+        #                                              np.zeros(5))  # ?? tomt array
     else:
-        _, rotation_vector, translation_vector, _ = cv2.solvePnPRansac(trackable_3D_points_time_i,
-                                                      trackable_left_imagecoordinates_time_i1, K_left, np.zeros(5),
-                                                       rvec, tvec,  useExtrinsicGuess = True)
+        trackable_left_imagecoordinates_time_i1 = trackable_left_imagecoordinates_time_i1.astype('float32')
+        trackable_left_imagecoordinates_time_i1 = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1).reshape((-1,2))
+        _, rotation_vector, translation_vector = cv2.solvePnP(np.ascontiguousarray(trackable_3D_points_time_i).reshape((-1,3)),
+                                                    trackable_left_imagecoordinates_time_i1,
+                                                    np.ascontiguousarray(K_left).reshape((3,3)),None)
 
     return translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector), rotation_vector, translation_vector
 
