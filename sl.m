@@ -1,6 +1,6 @@
 clc;clear;close all
 
-data = load('C:\Users\test\Desktop\skoli2020f\project\data_odometry_gray\dataset\sequences\06\06.txt');
+data = load('C:\Users\test\Desktop\skoli2020f\project\KITTI_sequence_2\poses.txt');
 
 hold on
 
@@ -12,7 +12,7 @@ end
 
 d2 = load('C:\Users\test\Desktop\skoli2020f\project\SLAM\path.txt');
 %data = data(1:100,:)
-d2(:,2) = d2(:,2).*(-1);
+%d2(:,2) = d2(:,2).*(-1);
 
 for i=1:size(d2,1)-1
     line([d2(i,1),d2(i+1,1)],[d2(i,2),d2(i+1,2)]);

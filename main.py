@@ -47,6 +47,9 @@ def orb_extraction_compute(img, kp):
 
 
 def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_points_right, descriptors_right):
+    #print("Key points left size: %d" % np.shape(key_points_left))
+    #print("Key points right size: %d" % np.shape(key_points_right))
+
     # https://docs.opencv.org/master/d1/de0/tutorial_py_feature_homography.html
     FLANN_INDEX_LSH = 6
     index_params = dict(algorithm=FLANN_INDEX_LSH, table_number=6, key_size=12, multi_probe_level=1)
@@ -63,20 +66,25 @@ def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_poi
 
     pts_left = np.asarray([key_points_left[m.queryIdx].pt for m in good])
     pts_right = np.asarray([key_points_right[m.trainIdx].pt for m in good])
+    #cprint("pts_left size: %d" % np.shape(key_points_left))
+    #print("pts_right size: %d" % np.shape(key_points_left))
 
     des_left = np.asarray([descriptors_left[m.queryIdx] for m in good])
     des_right = np.asarray([descriptors_right[m.trainIdx] for m in good])
 
-    F, mask = cv2.findFundamentalMat(pts_left, pts_right, cv2.FM_LMEDS)
+    F, mask = cv2.findFundamentalMat(pts_left, pts_right, cv2.FM_RANSAC, 3, 0.99)
     # brug mask
     distances = []
     for i in range(len(pts_left)):
         dist = cv2.sampsonDistance(pts_left[i], pts_right[i], F)
-        if dist < 1000:
+        print(dist)
+        if dist < 100000:
             distances.append(True)
         else:
             distances.append(False)
 
+    #print("pts_left[distances] size: " ,np.shape(pts_left[distances]))
+    #print("pts_right[distances] size: ",np.shape(pts_right[distances]))
     return pts_left[distances], pts_right[distances], des_left[distances], des_right[distances]
 
 
@@ -194,6 +202,7 @@ def translation_and_rotation_vector_to_matrix(rotvec, transvec):
 def triangulate_points_local(qs_l, qs_r, P_l, P_r):
     qs_l = np.transpose(qs_l)
     qs_r = np.transpose(qs_r)
+    #print(np.shape(qs_l), np.shape(qs_r))
     hom_Qs = cv2.triangulatePoints(P_l, P_r, qs_l, qs_r)
     return np.transpose(hom_Qs[:3] / hom_Qs[3])
 
@@ -224,6 +233,18 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
 
     return translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector), rotation_vector, translation_vector
 
+
+def relative_to_abs3DPoints(points3D, camera_frame):
+    # Update the 3D points
+    ones = np.ones((np.shape(points3D)[0], 1))
+
+    homogen_points = np.hstack((points3D, ones))
+
+    abs_3D_points = np.matmul(camera_frame,np.transpose(homogen_points))
+
+    return np.transpose(abs_3D_points[:3] / abs_3D_points[3])
+
+
 def main():
     # C:\Users\Ole\Desktop\Project\dataset\sequences
     #image_path = "../KITTI_sequence_2/"
@@ -244,36 +265,31 @@ def main():
     f = open("path.txt", "w")
     f.close()
 
+    f = open("3DPoints.txt", 'w')
+    f.close()
+
     # key_points_left_time_i, descriptors_left_time_i = get_descriptors_and_keypoints(leftimages[0])
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0])
     for i in range(len(leftimages)-1):
 
-        #key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i])
+        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i])
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1])
-        # key_points_left_time_i1, descriptors_left_time_i1 = get_descriptors_and_keypoints(leftimages[i+1])
 
         trackable_keypoints_left_time_i, trackable_descriptors_left_time_i, \
         trackable_keypoints_right_time_i = track_keypoints_left_to_right(leftimages[i], rightimages[i],
-                                                                                  key_points_left_time_i,
-                                                                                  descriptors_left_time_i)
+                                                                                 key_points_left_time_i,
+                                                                                 descriptors_left_time_i)
 
+        # print(np.shape(key_points_left_time_i))
+        # trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, \
+        # trackable_descriptors_left_time_i, trackable_descriptors_right_time_i = track_keypoints_left_to_right_new(key_points_left_time_i,
+        #                                   descriptors_left_time_i, key_points_right_time_i, descriptors_right_time_i)
 
-        #trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, \
-        #trackable_descriptors_left_time_i, trackable_descriptors_right_time_i = track_keypoints_left_to_right_new(key_points_left_time_i,
-        #                                  descriptors_left_time_i, key_points_right_time_i, descriptors_right_time_i)
-
-
-
-        triangulated_3D_points_time_i = triangulate_points_local(trackable_keypoints_left_time_i,
-                                                                 trackable_keypoints_right_time_i, P_left, P_right)
-
-        # print(trackable_keypoints_left_time_i)
-        # print(trackable_keypoints_right_time_i)
-
+        relative_triangulated_3D_points_time_i = triangulate_points_local(trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, P_left, P_right)
 
         trackable_left_imagecoordinates_time_i1, trackable_3D_points_time_i \
             = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i,
-                          key_points_left_time_i1, descriptors_left_time_i1, triangulated_3D_points_time_i)
+                          key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i)
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
 
@@ -285,6 +301,13 @@ def main():
             transformation_matrix = np.eye(4)
 
         camera_frame = np.matmul(camera_frame, transformation_matrix)
+
+        absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame)
+        f = open("3DPoints.txt", 'a')
+        for x, y, z in absPoint:
+            f.write(str(x) +", "+ str(y) +", " + str(z)+ ","+ str(i)+"\n")
+        f.close()
+
         f = open("path.txt", "a")
         f.write(str(camera_frame[0,3])+"," + str(camera_frame[2,3])+"\n")
         f.close()
