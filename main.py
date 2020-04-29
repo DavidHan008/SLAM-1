@@ -1,5 +1,8 @@
 from tracking import *
+from keyframe import *
 from visual_odometry_solution_methods import *
+from sklearn.neighbors import KDTree
+
 import cv2
 import math
 
@@ -207,7 +210,7 @@ def triangulate_points_local(qs_l, qs_r, P_l, P_r):
     return np.transpose(hom_Qs[:3] / hom_Qs[3])
 
 def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_imagecoordinates_time_i1,
-                                        close_3D_points_index, far_3D_points_index, K_left, rvec, tvec):
+                                        close_3D_points_index, far_3D_points_index, K_left):
 
     if sum(close_3D_points_index) > 1000000 and sum(far_3D_points_index) > 10:
         image_point = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[close_3D_points_index]).reshape((-1,2))
@@ -230,8 +233,10 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
                                                                        track2dPoints, K_left,
                                                                        np.zeros(5))
 
+    transformation_matrix = translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector)
+    #transformation_matrix[0,3] += 50000
 
-    return translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector), rotation_vector, translation_vector
+    return transformation_matrix
 
 
 def relative_to_abs3DPoints(points3D, camera_frame):
@@ -245,13 +250,59 @@ def relative_to_abs3DPoints(points3D, camera_frame):
     return np.transpose(abs_3D_points[:3] / abs_3D_points[3])
 
 
+def clear_textfile(file_path):
+    f = open(file_path, "w")
+    f.close()
+
+def save3DPoints(file_name, points, frame):
+    f = open("3DPoints.txt", 'a')
+    for x, y, z in points:
+        f.write(str(x) +", "+ str(y) +", " + str(z)+ ","+ str(frame)+"\n")
+    f.close()
+
+def appendKeyPoints(Qs, absPoint, distance, points_2d, frameindx):
+
+    if (len(Qs) == 0):
+        return absPoint
+
+    known_points_tree = KDTree(Qs)
+
+    dist, ind = known_points_tree.query(absPoint, k = 1)
+
+    print("len abs",len(absPoint))
+    print("len dist", len(dist))
+    print("len q", len(Qs))
+
+    newq = []   # indeholde Qs, Frameindx, 2d position
+    for d in range(len(dist)):
+        if dist[d] < distance:
+
+            Qtemp = Qs[ind[d]].ravel()
+            Qtemp[0] = (Qtemp[0] + absPoint[d][0])/2
+            Qtemp[1] = (Qtemp[1] + absPoint[d][1])/2
+            Qtemp[2] = (Qtemp[2] + absPoint[d][2])/2
+
+            newq.extend(points_2d[d])
+        else:
+            Qs = np.vstack((Qs, absPoint[d]))
+
+            newq.extend(points_2d[d])
+
+    Qs = np.reshape(Qs,(-1,3))
+    #newq = np.reshape(newq, (-1,2))
+    #print(np.shape(newq), "image coords")
+    #print(np.shape(newQ), "world coords\n--------")
+    # Also return [[Qind, camframe 2dpoint],[]]
+    return Qs, []
+
+
 def main():
     # C:\Users\Ole\Desktop\Project\dataset\sequences
-    #image_path = "../KITTI_sequence_2/"
-    image_path = "../data_odometry_gray/dataset/sequences/06/"
+    image_path = "../KITTI_sequence_2/"
+    #image_path = "../data_odometry_gray/dataset/sequences/06/"
     # Load the images of the left and right camera
-    leftimages = load_images(os.path.join(image_path, "image_0"))
-    rightimages = load_images(os.path.join(image_path, "image_1"))
+    leftimages = load_images(os.path.join(image_path, "image_l"))
+    rightimages = load_images(os.path.join(image_path, "image_r"))
 
     # Load K and P from the calibration file
     K_left, P_left, _, P_right = load_calib(image_path+"calib.txt")
@@ -260,15 +311,18 @@ def main():
     camera_frame = np.eye(4)
     rvec = np.array([0,0,0])
     tvec = np.array([0,0,0])
-    trans_old = np.eye(4)
 
-    f = open("path.txt", "w")
-    f.close()
+    camera_frames = []
+    camera_frame_pose = np.eye(4)
+    camera_frame = KeyFrame(camera_frame_pose)
+    camera_frames.append(camera_frame)
 
-    f = open("3DPoints.txt", 'w')
-    f.close()
+    Qs = []             # 3D points
+    observations = []   # An array that includes frameindex, 3Dpoint index and 2D point in that frame
 
-    # key_points_left_time_i, descriptors_left_time_i = get_descriptors_and_keypoints(leftimages[0])
+    clear_textfile("path" +str(image_path[-2]) +".txt")
+    clear_textfile("3DPoints.txt")
+
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0])
     for i in range(len(leftimages)-1):
 
@@ -294,24 +348,30 @@ def main():
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
 
         if len(trackable_3D_points_time_i) > 4:
-            transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
+            transformation_matrix = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
-                                                                    close_3D_points_index, far_3D_points_index, K_left, rvec, tvec)
+                                                                    close_3D_points_index, far_3D_points_index, K_left)
         else:
             transformation_matrix = np.eye(4)
 
-        camera_frame = np.matmul(camera_frame, transformation_matrix)
+        camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
 
-        absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame)
-        f = open("3DPoints.txt", 'a')
-        for x, y, z in absPoint:
-            f.write(str(x) +", "+ str(y) +", " + str(z)+ ","+ str(i)+"\n")
+    #    camera_frame_pose[2,3] *= (-1)
+        camera_frame = KeyFrame(camera_frame_pose)
+        camera_frames.append(camera_frame)
+
+        absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame.pose)
+
+
+        Qs = appendKeyPoints(Qs, absPoint, 0.2, trackable_keypoints_left_time_i, i)
+
+
+
+        save3DPoints("3DPoints.txt", absPoint, i)
+
+        f = open("path" +str(image_path[-2]) +".txt", "a")
+        f.write(str(-camera_frame.pose[0,3])+"," + str(-camera_frame.pose[2,3])+"\n")
         f.close()
-
-        f = open("path.txt", "a")
-        f.write(str(camera_frame[0,3])+"," + str(camera_frame[2,3])+"\n")
-        f.close()
-
 
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1
@@ -323,10 +383,9 @@ def main():
         cv2.imshow("hej", imgfirst)
         cv2.waitKey(30)
 
-
-    print("Final frame: \n", camera_frame, "\n\n")
+    print("Final frame pose: \n", camera_frames[len(camera_frames)-1].pose, "\n\n")
     print("Real frame: \n", poses[-1], "\n\n")
-    print("Difference: \n", np.abs(camera_frame-poses[-1]), "\n\n")
+    print("Difference: \n", np.abs(camera_frame.pose - poses[-1]), "\n\n")
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,4 @@
+#TODO: getRoute function that takes in camera_frames and returns array with x,y,z positions
+#TODO: Implement both relative and absolute camera_pose
+#TODO: Save 3DPoints in the end
+#TODO: Save 3D points running
