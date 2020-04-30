@@ -240,7 +240,7 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
     transformation_matrix = translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector)
     #transformation_matrix[0,3] += 50000
 
-    return transformation_matrix
+    return transformation_matrix, rotation_vector, translation_vector
 
 
 def relative_to_abs3DPoints(points3D, camera_frame):
@@ -318,12 +318,14 @@ def main():
 
     Qs = []             # 3D points
     observations = []   # An array that includes frameindex, 3Dpoint index and 2D point in that frame
-
+    combined_tvec = []
+    combided_rvec = []
     clear_textfile("path" +str(image_path[-2]) +".txt")
     clear_textfile("3DPoints.txt")
     optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0])
-    for i in range(len(leftimages)-1):
+    #for i in range(len(leftimages)-1):
+    for i in range(2):
 
         key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i])
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1])
@@ -347,12 +349,16 @@ def main():
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
 
         if len(trackable_3D_points_time_i) > 4:
-            transformation_matrix = calculate_transformation_matrix(trackable_3D_points_time_i,
+            transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
                                                                     close_3D_points_index, far_3D_points_index, K_left)
         else:
             transformation_matrix = np.eye(4)
+            rvec = [0,0,0]
+            tvec = [0,0,0]
 
+        combined_tvec = np.vstack(combined_tvec, tvec)
+        combided_rvec = np.vstack(combided_rvec, rvec)
         camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
 
         camera_frame = KeyFrame(camera_frame_pose)
@@ -362,7 +368,7 @@ def main():
 
         Qs, opt = appendKeyPoints(Qs, absPoint, 0.2, imagecoords_left_time_i, i)
         optimization_matrix = np.vstack((optimization_matrix,opt))
-        print(opt)
+
         save3DPoints("3DPoints.txt", absPoint, i)
 
         f = open("path" +str(image_path[-2]) +".txt", "a")
@@ -382,18 +388,23 @@ def main():
 
     f = open("optimizing_matrix.txt", "w")
     for pik in optimization_matrix:
-        f.writelines(pik)
+        f.write(str(pik[0]) + "," + str(pik[1]) + "," + str(pik[2]) + "," + str(pik[3]) + "\n")
     f.close()
 
 
     f = open("Q.txt", "w")
-    for coords in pik in Qs:
-        f.writelines(coords)
+    for coords in Qs:
+        f.write(str(coords[0]) + "," + str(coords[1]) + "," + str(coords[2]) + "\n")
     f.close()
 
     # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
     f = open("cam_params.txt", "w")
-    
+    for a in range(len(combided_rvec)):
+        f.write(str(combided_rvec[a][0])+", " + str(combided_rvec[a][1])+", " +str(combided_rvec[a][2]) +", ")
+        f.write(str(combined_tvec[a][0])+", " + str(combined_tvec[a][1])+", " +str(combined_tvec[a][2]) +", ")
+        f.write()
+
+    f.close()
 
     print("Final frame pose: \n", camera_frames[len(camera_frames)-1].pose, "\n\n")
     print("Real frame: \n", poses[-1], "\n\n")
