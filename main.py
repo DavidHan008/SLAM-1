@@ -6,7 +6,6 @@ from sklearn.neighbors import KDTree
 import cv2
 import math
 
-
 def orb_detector_using_tiles(image, max_number_of_kp = 20, overlap_div = 2, height_div = 5, width_div = 10):
     def get_kps(x, y, h, w):
         impatch = image[y:y + h, x:x + w]
@@ -30,6 +29,7 @@ def orb_detector_using_tiles(image, max_number_of_kp = 20, overlap_div = 2, heig
     des = np.reshape(des, (-1, 32))
     return kp_list, des
 
+
 def orb_extraction_detect(img):
     """FAST corners at 8 scale levels with a scale factor of 1.2.
     For image resolutions from 512×384 to 752×480 pixels we found suitable to extract 1000 corners,
@@ -42,6 +42,7 @@ def orb_extraction_detect(img):
     kp, des = orb.compute(img, kp)
 
     return kp, des
+
 
 def orb_extraction_compute(img, kp):
     orb = cv2.ORB_create(nfeatures = 50, scaleFactor=1.2)
@@ -113,7 +114,7 @@ def track_keypoints_left_to_right(image_left, image_right, key_points_left, desc
     return trackpoints1[in_bounds], descriptors_left[in_bounds], trackpoints2[in_bounds]
 
 
-def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i1, descriptors_left_time_i1, triangulated_3D_points):
+def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i,  keypoints_left_time_i1, descriptors_left_time_i1, triangulated_3D_points):
     # https://docs.opencv.org/master/d1/de0/tutorial_py_feature_homography.html
     FLANN_INDEX_LSH = 6
     index_params = dict(algorithm=FLANN_INDEX_LSH, table_number=6, key_size=12, multi_probe_level=1)
@@ -128,8 +129,9 @@ def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i1, d
     except ValueError:
         pass
     Q1 = np.asarray([triangulated_3D_points[m.queryIdx] for m in good])
+    q1 = np.asarray([keypoints_left_time_i[m.queryIdx] for m in good])
     q2 = np.asarray([keypoints_left_time_i1[m.trainIdx].pt for m in good])
-    return q2, Q1
+    return q2, Q1, q1
 
 
 def remove_dublicate_keypoints(keypoints, descriptors):
@@ -149,9 +151,9 @@ def remove_dublicate_keypoints(keypoints, descriptors):
     des = np.reshape(des, (-1,32))
     return kp, des
 
+
 # Calculates Rotation Matrix given euler angles.
 # Stolen from https://www.learnopencv.com/rotation-matrix-to-euler-angles/
-
 def eulerAnglesToRotationMatrix(theta):
     R_x = np.array([[1, 0, 0],
                     [0, math.cos(theta[0]), -math.sin(theta[0])],
@@ -202,12 +204,14 @@ def translation_and_rotation_vector_to_matrix(rotvec, transvec):
     #transvec[0] = 1 * transvec[0]
     return form_transf(rotm, np.transpose(transvec))
 
+
 def triangulate_points_local(qs_l, qs_r, P_l, P_r):
     qs_l = np.transpose(qs_l)
     qs_r = np.transpose(qs_r)
     #print(np.shape(qs_l), np.shape(qs_r))
     hom_Qs = cv2.triangulatePoints(P_l, P_r, qs_l, qs_r)
     return np.transpose(hom_Qs[:3] / hom_Qs[3])
+
 
 def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_imagecoordinates_time_i1,
                                         close_3D_points_index, far_3D_points_index, K_left):
@@ -254,46 +258,39 @@ def clear_textfile(file_path):
     f = open(file_path, "w")
     f.close()
 
+
 def save3DPoints(file_name, points, frame):
     f = open("3DPoints.txt", 'a')
     for x, y, z in points:
         f.write(str(x) +", "+ str(y) +", " + str(z)+ ","+ str(frame)+"\n")
     f.close()
 
-def appendKeyPoints(Qs, absPoint, distance, points_2d, frameindx):
 
+# Returns array of [frame_index, 3D_index, u, v]
+def appendKeyPoints(Qs, absPoint, distance, points_2d, frame_index):
+    full_index_array = np.empty((0, 4))  # frame index, 3Dp index, 2d coordinates
+    tmp_index_array = []
     if (len(Qs) == 0):
-        return absPoint
+        for i in range(len(absPoint)):
+            tmp_index_array = [frame_index, i, points_2d[i][0], points_2d[i][1]]
+            full_index_array = np.vstack((full_index_array, tmp_index_array))
+        return absPoint, full_index_array
 
     known_points_tree = KDTree(Qs)
 
     dist, ind = known_points_tree.query(absPoint, k = 1)
 
-    print("len abs",len(absPoint))
-    print("len dist", len(dist))
-    print("len q", len(Qs))
-
-    newq = []   # indeholde Qs, Frameindx, 2d position
     for d in range(len(dist)):
         if dist[d] < distance:
-
-            Qtemp = Qs[ind[d]].ravel()
-            Qtemp[0] = (Qtemp[0] + absPoint[d][0])/2
-            Qtemp[1] = (Qtemp[1] + absPoint[d][1])/2
-            Qtemp[2] = (Qtemp[2] + absPoint[d][2])/2
-
-            newq.extend(points_2d[d])
+            tmp_index_array = [frame_index, int(ind[d]), points_2d[d][0], points_2d[d][1]]
         else:
             Qs = np.vstack((Qs, absPoint[d]))
+            tmp_index_array = [frame_index, len(Qs) - 1, points_2d[d][0], points_2d[d][1]]
 
-            newq.extend(points_2d[d])
+        full_index_array = np.vstack((full_index_array, tmp_index_array))
 
     Qs = np.reshape(Qs,(-1,3))
-    #newq = np.reshape(newq, (-1,2))
-    #print(np.shape(newq), "image coords")
-    #print(np.shape(newQ), "world coords\n--------")
-    # Also return [[Qind, camframe 2dpoint],[]]
-    return Qs, []
+    return Qs, full_index_array
 
 
 def main():
@@ -317,12 +314,14 @@ def main():
     camera_frame = KeyFrame(camera_frame_pose)
     camera_frames.append(camera_frame)
 
+    frame_numbers = []
+
     Qs = []             # 3D points
     observations = []   # An array that includes frameindex, 3Dpoint index and 2D point in that frame
 
     clear_textfile("path" +str(image_path[-2]) +".txt")
     clear_textfile("3DPoints.txt")
-
+    optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0])
     for i in range(len(leftimages)-1):
 
@@ -341,8 +340,8 @@ def main():
 
         relative_triangulated_3D_points_time_i = triangulate_points_local(trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, P_left, P_right)
 
-        trackable_left_imagecoordinates_time_i1, trackable_3D_points_time_i \
-            = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i,
+        trackable_left_imagecoordinates_time_i1, trackable_3D_points_time_i, imagecoords_left_time_i \
+            = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i, trackable_keypoints_left_time_i,
                           key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i)
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
@@ -356,17 +355,14 @@ def main():
 
         camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
 
-    #    camera_frame_pose[2,3] *= (-1)
         camera_frame = KeyFrame(camera_frame_pose)
         camera_frames.append(camera_frame)
 
         absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame.pose)
 
-
-        Qs = appendKeyPoints(Qs, absPoint, 0.2, trackable_keypoints_left_time_i, i)
-
-
-
+        Qs, opt = appendKeyPoints(Qs, absPoint, 0.2, imagecoords_left_time_i, i)
+        optimization_matrix = np.vstack((optimization_matrix,opt))
+        print(opt)
         save3DPoints("3DPoints.txt", absPoint, i)
 
         f = open("path" +str(image_path[-2]) +".txt", "a")
@@ -382,6 +378,22 @@ def main():
             cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
         cv2.imshow("hej", imgfirst)
         cv2.waitKey(30)
+
+
+    f = open("optimizing_matrix.txt", "w")
+    for pik in optimization_matrix:
+        f.writelines(pik)
+    f.close()
+
+
+    f = open("Q.txt", "w")
+    for coords in pik in Qs:
+        f.writelines(coords)
+    f.close()
+
+    # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
+    f = open("cam_params.txt", "w")
+    
 
     print("Final frame pose: \n", camera_frames[len(camera_frames)-1].pose, "\n\n")
     print("Real frame: \n", poses[-1], "\n\n")
