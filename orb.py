@@ -1,7 +1,10 @@
-def orb_detector_using_tiles(image, max_number_of_kp = 20, overlap_div = 2, height_div = 5, width_div = 10):
+import cv2
+import numpy as np
+
+def orb_detector_using_tiles(image, max_number_of_kp = 40, overlap_div = 2, height_div = 5, width_div = 10):
     def get_kps(x, y, h, w):
         impatch = image[y:y + h, x:x + w]
-        keypoints, descriptors = orb_extraction_detect(impatch)
+        keypoints, descriptors = orb_extraction_detect(impatch,max_number_of_kp)
         for pt in keypoints:
             pt.pt = (pt.pt[0] + x, pt.pt[1] + y)
         if len(keypoints) == 0:
@@ -22,13 +25,12 @@ def orb_detector_using_tiles(image, max_number_of_kp = 20, overlap_div = 2, heig
     return kp_list, des
 
 
-def orb_extraction_detect(img):
+def orb_extraction_detect(img,max_features):
     """FAST corners at 8 scale levels with a scale factor of 1.2.
     For image resolutions from 512×384 to 752×480 pixels we found suitable to extract 1000 corners,
     for higher resolutions, as the 1241 × 376 in the KITTI dataset [40] we extract 2000 corners"""
-
     # Initiate ORB detector
-    orb = cv2.ORB_create(nfeatures = 40, scaleFactor=1.2)
+    orb = cv2.ORB_create(nfeatures = max_features, scaleFactor=1.2)
     # find the keypoints with ORB
     kp = orb.detect(img, None)
     kp, des = orb.compute(img, kp)
@@ -36,7 +38,7 @@ def orb_extraction_detect(img):
     return kp, des
 
 
-def orb_extraction_compute(img, kp):
-    orb = cv2.ORB_create(nfeatures = 50, scaleFactor=1.2)
-    kp, des = orb.compute(img, kp)
-    return kp, des
+# def orb_extraction_compute(img, kp):
+#     orb = cv2.ORB_create(nfeatures = 50, scaleFactor=1.2)
+#     kp, des = orb.compute(img, kp)
+#     return kp, des

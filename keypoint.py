@@ -1,3 +1,8 @@
+import cv2
+import numpy as np
+from sklearn.neighbors import KDTree
+import math
+
 class KeyPoint:
     def __init__(self, x, y, z, des):
         self.x = x
@@ -27,7 +32,7 @@ def track_keypoints_left_to_right(image_left, image_right, key_points_left, desc
     return trackpoints1[in_bounds], descriptors_left[in_bounds], trackpoints2[in_bounds]
 
 
-def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_points_right, descriptors_right):
+def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_points_right, descriptors_right, leftimg, rightimg):
     #print("Key points left size: %d" % np.shape(key_points_left))
     #print("Key points right size: %d" % np.shape(key_points_right))
 
@@ -51,20 +56,29 @@ def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_poi
     des_left = np.asarray([descriptors_left[m.queryIdx] for m in good])
     des_right = np.asarray([descriptors_right[m.trainIdx] for m in good])
 
-    F, mask = cv2.findFundamentalMat(pts_left, pts_right, cv2.FM_RANSAC, 3, 0.99)
-    # brug mask
-    distances = []
-    for i in range(len(pts_left)):
-        dist = cv2.sampsonDistance(pts_left[i], pts_right[i], F)
-        print(dist)
-        if dist < 100000:
-            distances.append(True)
-        else:
-            distances.append(False)
+    F, mask = cv2.findFundamentalMat(pts_left, pts_right, cv2.FM_LMEDS)
 
-    #print("pts_left[distances] size: " ,np.shape(pts_left[distances]))
-    #print("pts_right[distances] size: ",np.shape(pts_right[distances]))
-    return pts_left[distances], pts_right[distances], des_left[distances], des_right[distances]
+    mask = np.array(mask,dtype=bool).ravel() # unravel the mask.
+
+    pts_left = pts_left[mask] # apply mask to keypoints and descriptors
+    pts_right = pts_right[mask]
+    des_left = des_left[mask]
+    des_right = des_right[mask]
+
+    # ----- Show the corresponding keypoints, after masking via Fundamental matrix (Sampsons Distance) -----
+
+    imgfirst = cv2.cvtColor(leftimg, cv2.COLOR_GRAY2BGR)
+    imgsecond = cv2.cvtColor(rightimg, cv2.COLOR_GRAY2BGR)
+    for point_idx in range(len(pts_left)):
+        col = (np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255))
+        siz = np.random.randint(3,6)
+        cv2.circle(imgfirst, (int(pts_left[point_idx][0]),int(pts_left[point_idx][1])), siz, col,-1,cv2.LINE_AA)
+        cv2.circle(imgsecond, (int(pts_right[point_idx][0]),int(pts_right[point_idx][1])), siz, col,-1,cv2.LINE_AA)
+    cv2.imshow("Left",imgfirst)
+    cv2.imshow("Right", imgsecond)
+    cv2.waitKey(1)
+
+    return pts_left, pts_right, des_left, des_right
 
 
 def remove_dublicate_keypoints(keypoints, descriptors):
@@ -97,7 +111,7 @@ def appendKeyPoints(Qs, absPoint, threshold, points_2d, frame_index, rel_point):
     known_points_tree = KDTree(Qs)
     dist, ind = known_points_tree.query(absPoint, k = 1)
     for d in range(len(dist)):
-        print(threshold*math.sqrt(np.sum(rel_point[d]**2)))
+        # print(threshold*math.sqrt(np.sum(rel_point[d]**2)))
         distance = threshold*math.sqrt(np.sum(rel_point[d]**2))
         if dist[d] < distance:
             tmp_index_array = [frame_index, int(ind[d]), points_2d[d][0], points_2d[d][1]]

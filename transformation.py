@@ -1,3 +1,7 @@
+import numpy as np
+import cv2
+import math
+
 def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_imagecoordinates_time_i1,
                                         close_3D_points_index, far_3D_points_index, K_left):
 
@@ -35,6 +39,12 @@ def translation_and_rotation_vector_to_matrix(rotvec, transvec):
     #transvec[1] = -1 * transvec[1]
     #transvec[0] = 1 * transvec[0]
     return form_transf(rotm, np.transpose(transvec))
+
+def form_transf(R, t):
+    T = np.eye(4, dtype=np.float)
+    T[:3, :3] = R
+    T[:3, 3] = t
+    return T
 
 
 # Calculates Rotation Matrix given euler angles.
