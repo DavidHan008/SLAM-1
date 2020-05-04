@@ -125,12 +125,15 @@ def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i,  k
     try:
         for m, n in matches:
             if m.distance < 0.7 * n.distance: #0.7
-                good.append(m)
+                if abs(triangulated_3D_points[m.queryIdx, 0]) < 1000 and abs(triangulated_3D_points[m.queryIdx, 1]) < 1000 and \
+                        abs(triangulated_3D_points[m.queryIdx, 2]) < 1000:
+                    good.append(m)
     except ValueError:
         pass
     Q1 = np.asarray([triangulated_3D_points[m.queryIdx] for m in good])
     q1 = np.asarray([keypoints_left_time_i[m.queryIdx] for m in good])
     q2 = np.asarray([keypoints_left_time_i1[m.trainIdx].pt for m in good])
+
     return q2, Q1, q1
 
 
@@ -233,6 +236,7 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
         track2dPoints = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[close_3D_points_index]).reshape((-1,2))
         track3dPoints = np.ascontiguousarray(trackable_3D_points_time_i[close_3D_points_index]).reshape((-1,3))
 
+
         _, rotation_vector, translation_vector, _ = cv2.solvePnPRansac(track3dPoints,
                                                                        track2dPoints, K_left,
                                                                        np.zeros(5))
@@ -318,14 +322,13 @@ def main():
 
     Qs = []             # 3D points
     observations = []   # An array that includes frameindex, 3Dpoint index and 2D point in that frame
-    combined_tvec = []
-    combided_rvec = []
+    combined_tvec = []#np.empty((1,3))
+    combided_rvec =  []#np.empty((1,3))
     clear_textfile("path" +str(image_path[-2]) +".txt")
     clear_textfile("3DPoints.txt")
     optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0])
-    #for i in range(len(leftimages)-1):
-    for i in range(2):
+    for i in range(len(leftimages)-1):
 
         key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i])
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1])
@@ -356,9 +359,20 @@ def main():
             transformation_matrix = np.eye(4)
             rvec = [0,0,0]
             tvec = [0,0,0]
+        #
+        # print("ravel")
+        # print(combided_rvec)
 
-        combined_tvec = np.vstack(combined_tvec, tvec)
-        combided_rvec = np.vstack(combided_rvec, rvec)
+
+
+        if len(combined_tvec) == 0:
+            combided_rvec = rvec.ravel()
+            combined_tvec = tvec.ravel()
+
+        else:
+            combided_rvec = np.vstack((combided_rvec, rvec.ravel()))
+            combined_tvec = np.vstack((combined_tvec, tvec.ravel()))
+
         camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
 
         camera_frame = KeyFrame(camera_frame_pose)
@@ -366,7 +380,7 @@ def main():
 
         absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame.pose)
 
-        Qs, opt = appendKeyPoints(Qs, absPoint, 0.2, imagecoords_left_time_i, i)
+        Qs, opt = appendKeyPoints(Qs, absPoint, 2, imagecoords_left_time_i, i)
         optimization_matrix = np.vstack((optimization_matrix,opt))
 
         save3DPoints("3DPoints.txt", absPoint, i)
@@ -388,21 +402,21 @@ def main():
 
     f = open("optimizing_matrix.txt", "w")
     for pik in optimization_matrix:
-        f.write(str(pik[0]) + "," + str(pik[1]) + "," + str(pik[2]) + "," + str(pik[3]) + "\n")
+        f.write(str(int(pik[0])) + "," + str(int(pik[1])) + "," + str(pik[2]) + "," + str(pik[3]) + "\n")
     f.close()
 
 
     f = open("Q.txt", "w")
     for coords in Qs:
-        f.write(str(coords[0]) + "," + str(coords[1]) + "," + str(coords[2]) + "\n")
+        f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
     f.close()
 
     # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
     f = open("cam_params.txt", "w")
     for a in range(len(combided_rvec)):
-        f.write(str(combided_rvec[a][0])+", " + str(combided_rvec[a][1])+", " +str(combided_rvec[a][2]) +", ")
-        f.write(str(combined_tvec[a][0])+", " + str(combined_tvec[a][1])+", " +str(combined_tvec[a][2]) +", ")
-        f.write()
+        f.write(str(combided_rvec[a][0])+"\n" + str(combided_rvec[a][1])+"\n" +str(combided_rvec[a][2]) +"\n")
+        f.write(str(combined_tvec[a][0])+"\n" + str(combined_tvec[a][1])+"\n" +str(combined_tvec[a][2]) +"\n")
+        f.write(str(P_left[0][0])+"\n0\n0\n")
 
     f.close()
 
