@@ -36,11 +36,14 @@ def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i,  k
     good = []
     try:
         for m, n in matches:
-            if m.distance < 0.7 * n.distance:
-                good.append(m)
+            if m.distance < 0.7 * n.distance: #0.7
+                if abs(triangulated_3D_points[m.queryIdx, 0]) < 1000 and abs(triangulated_3D_points[m.queryIdx, 1]) < 1000 and \
+                        abs(triangulated_3D_points[m.queryIdx, 2]) < 1000:
+                    good.append(m)
     except ValueError:
         pass
     Q1 = np.asarray([triangulated_3D_points[m.queryIdx] for m in good])
     q1 = np.asarray([keypoints_left_time_i[m.queryIdx] for m in good])
     q2 = np.asarray([keypoints_left_time_i1[m.trainIdx].pt for m in good])
+
     return q2, Q1, q1

@@ -86,7 +86,7 @@ def remove_dublicate_keypoints(keypoints, descriptors):
 
 
 # Returns array of [frame_index, 3D_index, u, v]
-def appendKeyPoints(Qs, absPoint, distance, points_2d, frame_index):
+def appendKeyPoints(Qs, absPoint, threshold, points_2d, frame_index, rel_point):
     full_index_array = np.empty((0, 4))  # frame index, 3Dp index, 2d coordinates
     tmp_index_array = []
     if (len(Qs) == 0):
@@ -94,20 +94,16 @@ def appendKeyPoints(Qs, absPoint, distance, points_2d, frame_index):
             tmp_index_array = [frame_index, i, points_2d[i][0], points_2d[i][1]]
             full_index_array = np.vstack((full_index_array, tmp_index_array))
         return absPoint, full_index_array
-
     known_points_tree = KDTree(Qs)
-
     dist, ind = known_points_tree.query(absPoint, k = 1)
-
     for d in range(len(dist)):
+        print(threshold*math.sqrt(np.sum(rel_point[d]**2)))
+        distance = threshold*math.sqrt(np.sum(rel_point[d]**2))
         if dist[d] < distance:
             tmp_index_array = [frame_index, int(ind[d]), points_2d[d][0], points_2d[d][1]]
         else:
             Qs = np.vstack((Qs, absPoint[d]))
             tmp_index_array = [frame_index, len(Qs) - 1, points_2d[d][0], points_2d[d][1]]
-
         full_index_array = np.vstack((full_index_array, tmp_index_array))
-
     Qs = np.reshape(Qs,(-1,3))
     return Qs, full_index_array
-

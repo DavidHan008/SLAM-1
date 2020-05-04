@@ -32,7 +32,7 @@ class BoW:
         _, d = self.extractor.detectAndCompute(img, None)
         h = self.hist(d)
         dist = [chi2(h, entry) for entry in self.db]
-        return np.argmin(dist)
+        return np.argmin(dist), np.min(dist)
 
 
 def split_data(dataset, train_size=0.9, test_size=0.1):
@@ -54,5 +54,3 @@ def bow_main():
         cv2.imshow("query", img)
         cv2.imshow("match", train_img[idx])
         cv2.waitKey()
-
-bow_main()
