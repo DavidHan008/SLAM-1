@@ -2,9 +2,11 @@ from tracking import *
 from keyframe import *
 from visual_odometry_solution_methods import *
 from sklearn.neighbors import KDTree
+from bag_of_words import *
 
 import cv2
 import math
+
 
 def orb_detector_using_tiles(image, max_number_of_kp = 20, overlap_div = 2, height_div = 5, width_div = 10):
     def get_kps(x, y, h, w):
