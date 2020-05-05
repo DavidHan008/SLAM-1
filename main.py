@@ -87,7 +87,7 @@ def main():
 
         trackable_left_imagecoordinates_time_i1, trackable_3D_points_time_i, imagecoords_left_time_i \
             = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i, trackable_keypoints_left_time_i,
-                          key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i)
+                          key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i, max_Distance=500)
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
         if len(trackable_3D_points_time_i) > 4:
@@ -113,7 +113,7 @@ def main():
         optimization_matrix = np.vstack((optimization_matrix,opt))
         save3DPoints("3DPoints.txt", absPoint, i)
         f = open("path" +str(image_path[-2]) +".txt", "a")
-        f.write(str(-camera_frame.pose[0,3])+"," + str(-camera_frame.pose[2,3])+"\n")
+        f.write(str(camera_frame.pose[0,3])+","+str(camera_frame.pose[1,3])+"," + str(camera_frame.pose[2,3])+"\n")
         f.close()
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1
