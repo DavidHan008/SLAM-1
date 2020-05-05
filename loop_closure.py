@@ -14,6 +14,22 @@ vocabulary of 6 levels and 10 clusters per level, getting one
 million words. Such a big vocabulary is suggested in [6] to
 be efficient for recognition in large image databases."""
 #CITE LOOP CLOSURE
+image_path = "C:/Users/janus/Downloads/data_odometry_gray/dataset/sequences/06"
+#image_path = "../KITTI_sequence_1"
+n_clusters = 50
+n_features = 100
 
-if __name__ == '__main__':
-    main()
+# Load the images of the left and right camera
+leftimages = load_images(os.path.join(image_path, "image_0"))
+rightimages = load_images(os.path.join(image_path, "image_1"))
+
+bow = BoW(n_clusters, n_features)
+bow.train(leftimages[:100])
+
+for i in range(830, 900):#len(leftimages)-1):
+    idx, val = bow.predict_previous(leftimages[i], i, 0)
+    print(idx, val)
+    if val < 50:
+        cv2.imshow("query", leftimages[i])
+        cv2.imshow("match", leftimages[idx])
+        cv2.waitKey()
