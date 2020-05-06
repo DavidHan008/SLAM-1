@@ -69,8 +69,14 @@ def main():
     #     cv2.waitKey()
 
     optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
+    # for i in range(len(leftimages)):
+    #     leftimages[i] = cv2.flip(leftimages[i],1)
+    #     rightimages[i] = cv2.flip(rightimages[i],1)
+
+    print("FU")
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0],max_number_of_kp=100)
     for i in range(len(leftimages)-1):
+        print(i,"/",len(leftimages))
         key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=100)
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=100)
 
@@ -90,6 +96,7 @@ def main():
                           key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i, max_Distance=500)
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
+        print(len(trackable_3D_points_time_i))
         if len(trackable_3D_points_time_i) > 4:
             transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
@@ -105,6 +112,7 @@ def main():
         else:
             combided_rvec = np.vstack((combided_rvec, rvec.ravel()))
             combined_tvec = np.vstack((combined_tvec, tvec.ravel()))
+        print(transformation_matrix)
         camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
         camera_frame = KeyFrame(camera_frame_pose)
         camera_frames.append(camera_frame)
@@ -113,7 +121,7 @@ def main():
         optimization_matrix = np.vstack((optimization_matrix,opt))
         save3DPoints("3DPoints.txt", absPoint, i)
         f = open("path" +str(image_path[-2]) +".txt", "a")
-        f.write(str(camera_frame.pose[0,3])+","+str(camera_frame.pose[1,3])+"," + str(camera_frame.pose[2,3])+"\n")
+        f.write(str(camera_frame.pose[0,3])+","+str(camera_frame.pose[1,3])+"," + str(camera_frame.pose[2,3])+','+str(camera_frame.pose[0,0])+","+str(camera_frame.pose[0,1])+"," + str(camera_frame.pose[0,2])+','+str(camera_frame.pose[1,0])+","+str(camera_frame.pose[1,1])+"," + str(camera_frame.pose[1,2])+','+str(camera_frame.pose[2,0])+","+str(camera_frame.pose[2,1])+"," + str(camera_frame.pose[2,2])+"\n")
         f.close()
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1

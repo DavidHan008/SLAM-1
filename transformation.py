@@ -35,7 +35,12 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
 
 def translation_and_rotation_vector_to_matrix(rotvec, transvec):
     # rotm = eulerAnglesToRotationMatrix(rotvec)
-    rotm = cv2.Rodrigues(rotvec)
+    rotm = np.eye(3)
+    cv2.Rodrigues(rotvec, rotm)
+
+    rotm = np.linalg.inv(rotm)
+    transvec=-1*transvec
+    # print(rotm)
     #transvec[2] = -1 * transvec[2]
     #transvec[1] = -1 * transvec[1]
     #transvec[0] = 1 * transvec[0]

@@ -66,16 +66,16 @@ def track_keypoints_left_to_right_new(key_points_left, descriptors_left, key_poi
     des_right = des_right[mask]
 
     # ----- Show the corresponding keypoints, after masking via Fundamental matrix (Sampsons Distance) -----
-    # imgfirst = cv2.cvtColor(leftimg, cv2.COLOR_GRAY2BGR)
-    # imgsecond = cv2.cvtColor(rightimg, cv2.COLOR_GRAY2BGR)
-    # for point_idx in range(len(pts_left)):
-    #     col = (np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255))
-    #     siz = np.random.randint(3,6)
-    #     cv2.circle(imgfirst, (int(pts_left[point_idx][0]),int(pts_left[point_idx][1])), siz, col,-1,cv2.LINE_AA)
-    #     cv2.circle(imgsecond, (int(pts_right[point_idx][0]),int(pts_right[point_idx][1])), siz, col,-1,cv2.LINE_AA)
-    # cv2.imshow("Left",imgfirst)
-    # cv2.imshow("Right", imgsecond)
-    # cv2.waitKey(1)
+    imgfirst = cv2.cvtColor(leftimg, cv2.COLOR_GRAY2BGR)
+    imgsecond = cv2.cvtColor(rightimg, cv2.COLOR_GRAY2BGR)
+    for point_idx in range(len(pts_left)):
+        col = (np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255))
+        siz = np.random.randint(3,6)
+        cv2.circle(imgfirst, (int(pts_left[point_idx][0]),int(pts_left[point_idx][1])), siz, col,-1,cv2.LINE_AA)
+        cv2.circle(imgsecond, (int(pts_right[point_idx][0]),int(pts_right[point_idx][1])), siz, col,-1,cv2.LINE_AA)
+    cv2.imshow("Left",imgfirst)
+    cv2.imshow("Right", imgsecond)
+    cv2.waitKey(1)
 
     return pts_left, pts_right, des_left, des_right
 
