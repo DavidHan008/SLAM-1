@@ -4,3 +4,5 @@
 #TODO: Save 3D points running
 #TODO: Instead of saying two 3D points are the same within a dist, also take into account the distance from the camera frame
 #TODO: Remove outliers
+#TODO: Identify keyframes
+#TODO: BoW needs to use the previously computed keypoint/descriptor pairs

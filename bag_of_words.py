@@ -15,7 +15,7 @@ class BoW:
 
     def train(self, imgs):
         print('Computing local descriptors')
-        _, dlist = zip(*[self.extractor.detectAndCompute(img, None) for img in tqdm(imgs)])
+        kp_list, dlist = zip(*[self.extractor.detectAndCompute(img, None) for img in tqdm(imgs)])
         dpool = np.concatenate(dlist)
         self.kmeans = self.kmeans.fit(dpool)
         self.db = [self.hist(d) for d in dlist]
@@ -24,6 +24,24 @@ class BoW:
         labels = self.kmeans.predict(descriptors)
         hist, _ = np.histogram(labels, bins=self.n_clusters, range=(0, self.n_clusters - 1))
         return hist
+
+
+    def predict_previous(self, img, img_index, threshold):
+        def chi2(x, y):
+            return np.sum(2 * (x - y)**2 / (np.maximum(1, x + y)))
+
+        if (img_index < threshold):
+            return -1, -1
+        kp, d = self.extractor.detectAndCompute(img, None)
+        h = self.hist(d)
+        dist = []
+        for i in range(0, (img_index + 1 - threshold)):
+            temp = chi2(h, self.db[i])
+            dist.append(temp)
+
+        return np.argmin(dist), np.min(dist)
+
+
 
     def predict(self, img):
         def chi2(x, y):

@@ -27,16 +27,16 @@ def show_image(img1, points1, img2, points2):
 
 
 def main():
-    # image_path = "../KITTI_sequence_2/"
-    image_path = "../dataset/sequences/06/"
+    image_path = "../KITTI_sequence_2/"
+    #image_path = "../dataset/sequences/06/"
     # Load the images of the left and right camera
-    leftimages = load_images(os.path.join(image_path, "image_0"))
-    rightimages = load_images(os.path.join(image_path, "image_1"))
+    leftimages = load_images(os.path.join(image_path, "image_l"))
+    rightimages = load_images(os.path.join(image_path, "image_r"))
     n_clusters = 50
     n_features = 100
 
-    # bow = BoW(n_clusters, n_features)
-    # bow.train(leftimages[:20])
+    bow = BoW(n_clusters, n_features)
+    bow.train(leftimages)
 
     # Load K and P from the calibration file
     K_left, P_left, K_right, P_right = load_calib(image_path+"calib.txt")
@@ -59,14 +59,6 @@ def main():
 
     clear_textfile("path" +str(image_path[-2]) +".txt")
     clear_textfile("3DPoints.txt")
-    # # Initialize BoW for first image
-    # for image in leftimages[400:500]:#[813:850]:
-    #     idx, val = bow.predict(image) # til 835
-    #     print(idx)
-    #     print(val)
-    #     cv2.imshow("query", image)
-    #     cv2.imshow("match", leftimages[idx])
-    #     cv2.waitKey()
 
     optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
     # for i in range(len(leftimages)):
@@ -77,6 +69,7 @@ def main():
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0],max_number_of_kp=100)
     for i in range(len(leftimages)-1):
         print(i,"/",len(leftimages))
+        # ----------------- TRACKING AND LOCAL MAPPING -------------------- #
         key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=100)
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=100)
 
@@ -125,6 +118,10 @@ def main():
         f.close()
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1
+
+        # ---------------------------- LOOP CLOSURE -------------------------- #
+        idx, val = bow.predict_previous(leftimages[i], i, 100)
+        print(idx, val)
 
         # ----- Show the image with the found keypoints in red dots -----
         # imgfirst = leftimages[i+1]
