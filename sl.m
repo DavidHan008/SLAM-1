@@ -22,6 +22,7 @@ hold off
 
 %%
 clc,clear; close all
+%data = load('C:\VisionPyhton\Project\KITTI_sequence_2\poses.txt');
 data = load('C:\VisionPyhton\Project\dataset\sequences\06\poses.txt');
 figure
 hold on
@@ -33,7 +34,7 @@ end
 
 
 
-d2 = load('C:\VisionPyhton\Project\SLAM\path6.txt');
+d2 = load('C:\VisionPyhton\Project\SLAM\ourCache\path6.txt');
 %data = data(1:100,:)
 %d2(:,3) = d2(:,3).*(-1);
 % d2(:,1) = d2(:,1).*(-1);

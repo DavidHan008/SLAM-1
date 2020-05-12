@@ -27,16 +27,16 @@ def show_image(img1, points1, img2, points2):
 
 
 def main():
-    image_path = "../KITTI_sequence_2/"
-    #image_path = "../dataset/sequences/06/"
+    # image_path = "../KITTI_sequence_2/"
+    image_path = "../dataset/sequences/06/"
     # Load the images of the left and right camera
-    leftimages = load_images(os.path.join(image_path, "image_l"))
-    rightimages = load_images(os.path.join(image_path, "image_r"))
-    n_clusters = 50
-    n_features = 100
-
-    bow = BoW(n_clusters, n_features)
-    bow.train(leftimages)
+    leftimages = load_images(os.path.join(image_path, "image_0"))
+    rightimages = load_images(os.path.join(image_path, "image_1"))
+    # n_clusters = 50
+    # n_features = 100
+    #
+    # bow = BoW(n_clusters, n_features)
+    # bow.train(leftimages)
 
     # Load K and P from the calibration file
     K_left, P_left, K_right, P_right = load_calib(image_path+"calib.txt")
@@ -57,8 +57,8 @@ def main():
     combined_tvec = []  # np.empty((1,3))
     combided_rvec = [] # np.empty((1,3))
 
-    clear_textfile("path" +str(image_path[-2]) +".txt")
-    clear_textfile("3DPoints.txt")
+    clear_textfile("ourCache/path" +str(image_path[-2]) +".txt")
+    clear_textfile("ourCache/3DPoints.txt")
 
     optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
     # for i in range(len(leftimages)):
@@ -66,18 +66,13 @@ def main():
     #     rightimages[i] = cv2.flip(rightimages[i],1)
 
     print("FU")
-    key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0],max_number_of_kp=100)
+    key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0],max_number_of_kp=200)
     for i in range(len(leftimages)-1):
         print(i,"/",len(leftimages))
         # ----------------- TRACKING AND LOCAL MAPPING -------------------- #
-        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=100)
-        key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=100)
+        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=200)
+        key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=200)
 
-        # trackable_keypoints_left_time_i, trackable_descriptors_left_time_i, \
-        # trackable_keypoints_right_time_i = track_keypoints_left_to_right(leftimages[i], rightimages[i],
-        #                                                                          key_points_left_time_i,
-        #                                                                          descriptors_left_time_i)
-        # print(np.shape(key_points_left_time_i))
         trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, \
         trackable_descriptors_left_time_i, trackable_descriptors_right_time_i = track_keypoints_left_to_right_new(key_points_left_time_i,
                                           descriptors_left_time_i, key_points_right_time_i, descriptors_right_time_i, leftimages[i], rightimages[i])
@@ -88,16 +83,16 @@ def main():
             = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i, trackable_keypoints_left_time_i,
                           key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i, max_Distance=500)
 
-        close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=200)
+        close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=70)
         print(len(trackable_3D_points_time_i))
         if len(trackable_3D_points_time_i) > 4:
             transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
                                                                     close_3D_points_index, far_3D_points_index, K_left)
-        else:
-            transformation_matrix = np.eye(4)
-            rvec = [0,0,0]
-            tvec = [0,0,0]
+        # else:
+        #     transformation_matrix = np.eye(4)
+        #     rvec = [0,0,0]
+        #     tvec = [0,0,0]
 
         if len(combined_tvec) == 0:
             combided_rvec = rvec.ravel()
@@ -105,23 +100,23 @@ def main():
         else:
             combided_rvec = np.vstack((combided_rvec, rvec.ravel()))
             combined_tvec = np.vstack((combined_tvec, tvec.ravel()))
-        print(transformation_matrix)
+        # print(transformation_matrix)
         camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
         camera_frame = KeyFrame(camera_frame_pose)
         camera_frames.append(camera_frame)
         absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame.pose)
         Qs, opt = appendKeyPoints(Qs, absPoint, 0.1, imagecoords_left_time_i, i, trackable_3D_points_time_i)
         optimization_matrix = np.vstack((optimization_matrix,opt))
-        save3DPoints("3DPoints.txt", absPoint, i)
-        f = open("path" +str(image_path[-2]) +".txt", "a")
+        save3DPoints("ourCache/3DPoints.txt", absPoint, i)
+        f = open("ourCache/path" +str(image_path[-2]) +".txt", "a")
         f.write(str(camera_frame.pose[0,3])+","+str(camera_frame.pose[1,3])+"," + str(camera_frame.pose[2,3])+','+str(camera_frame.pose[0,0])+","+str(camera_frame.pose[0,1])+"," + str(camera_frame.pose[0,2])+','+str(camera_frame.pose[1,0])+","+str(camera_frame.pose[1,1])+"," + str(camera_frame.pose[1,2])+','+str(camera_frame.pose[2,0])+","+str(camera_frame.pose[2,1])+"," + str(camera_frame.pose[2,2])+"\n")
         f.close()
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1
 
         # ---------------------------- LOOP CLOSURE -------------------------- #
-        idx, val = bow.predict_previous(leftimages[i], i, 100)
-        print(idx, val)
+        # idx, val = bow.predict_previous(leftimages[i], i, 100)
+        # print(idx, val)
 
         # ----- Show the image with the found keypoints in red dots -----
         # imgfirst = leftimages[i+1]
@@ -132,18 +127,18 @@ def main():
         # cv2.waitKey(30)
 
 
-    f = open("optimizing_matrix.txt", "w")
+    f = open("ourCache/optimizing_matrix.txt", "w")
     for pik in optimization_matrix:
         f.write(str(int(pik[0])) + "," + str(int(pik[1])) + "," + str(pik[2]) + "," + str(pik[3]) + "\n")
     f.close()
 
-    f = open("Q.txt", "w")
+    f = open("ourCache/Q.txt", "w")
     for coords in Qs:
         f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
     f.close()
 
     # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
-    f = open("cam_params.txt", "w")
+    f = open("ourCache/cam_params.txt", "w")
     for a in range(len(combided_rvec)):
         f.write(str(combided_rvec[a][0])+"\n" + str(combided_rvec[a][1])+"\n" +str(combided_rvec[a][2]) +"\n")
         f.write(str(combined_tvec[a][0])+"\n" + str(combined_tvec[a][1])+"\n" +str(combined_tvec[a][2]) +"\n")

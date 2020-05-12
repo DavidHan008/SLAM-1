@@ -2,10 +2,11 @@ import numpy as np
 import cv2
 
 # Returns a mask of all valid points
-def sort_3D_points(triangulated_3D_point, close_def_in_m = 20, far_def_in_m = 20):
+def sort_3D_points(triangulated_3D_point, close_def_in_m = 100, far_def_in_m = 1):
 
     close_3D_point = [(abs(x[0]) < close_def_in_m and abs(x[1]) < close_def_in_m and abs(x[2]) < close_def_in_m) for x in triangulated_3D_point]
-    far_3D_points = np.bitwise_not(close_3D_point)
+    far_3D_points = [(abs(x[0]) > far_def_in_m or abs(x[1]) > far_def_in_m or abs(x[2]) > far_def_in_m) for x in triangulated_3D_point]
+
     return close_3D_point, far_3D_points
 
 
@@ -29,7 +30,7 @@ def relative_to_abs3DPoints(points3D, camera_frame):
     return np.transpose(abs_3D_points[:3] / abs_3D_points[3])
 
 
-def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i,  keypoints_left_time_i1, descriptors_left_time_i1, triangulated_3D_points, max_Distance=200):
+def find_2D_and_3D_correspondenses(descriptors_time_i, keypoints_left_time_i,  keypoints_left_time_i1, descriptors_left_time_i1, triangulated_3D_points, max_Distance=1000):
     # https://docs.opencv.org/master/d1/de0/tutorial_py_feature_homography.html
     FLANN_INDEX_LSH = 6
     # max_Distance = 200

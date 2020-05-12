@@ -4,30 +4,30 @@ import math
 
 def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_imagecoordinates_time_i1,
                                         close_3D_points_index, far_3D_points_index, K_left):
+    track2dPoints = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1).reshape(
+        (-1, 2))
+    track3dPoints = np.ascontiguousarray(trackable_3D_points_time_i).reshape((-1, 3))
 
-    if sum(close_3D_points_index) > 1000000 and sum(far_3D_points_index) > 10:
-        image_point = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[close_3D_points_index]).reshape((-1,2))
-        world_coord = np.ascontiguousarray(trackable_3D_points_time_i[close_3D_points_index]).reshape((-1,3))
+    # print(close_3D_points_index)
 
-        _, _, translation_vector, _ = cv2.solvePnPRansac(world_coord,
-                                                         image_point,
+    if sum(close_3D_points_index) > 100000000 and sum(far_3D_points_index) > 10:
+
+
+        _, _, translation_vector, _ = cv2.solvePnPRansac(track3dPoints[close_3D_points_index],
+                                                         track2dPoints[close_3D_points_index],
                                                          K_left,
                                                          np.zeros(5))
 
-        _, rotation_vector, _, _ = cv2.solvePnPRansac(world_coord,
-                                                     image_point,
+        _, rotation_vector, _, _ = cv2.solvePnPRansac(track3dPoints[far_3D_points_index],
+                                                     track2dPoints[far_3D_points_index],
                                                       K_left,
                                                       np.zeros(5))
     else:
-        track2dPoints = np.ascontiguousarray(trackable_left_imagecoordinates_time_i1[close_3D_points_index]).reshape((-1,2))
-        track3dPoints = np.ascontiguousarray(trackable_3D_points_time_i[close_3D_points_index]).reshape((-1,3))
-
         _, rotation_vector, translation_vector, _ = cv2.solvePnPRansac(track3dPoints,
                                                                        track2dPoints, K_left,
                                                                        np.zeros(5))
 
     transformation_matrix = translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector)
-    #transformation_matrix[0,3] += 50000
 
     return transformation_matrix, rotation_vector, translation_vector
 
