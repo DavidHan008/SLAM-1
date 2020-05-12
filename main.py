@@ -26,17 +26,20 @@ def show_image(img1, points1, img2, points2):
     cv2.waitKey(250)
 
 
+
 def main():
     # image_path = "../KITTI_sequence_2/"
     image_path = "../dataset/sequences/06/"
     # Load the images of the left and right camera
     leftimages = load_images(os.path.join(image_path, "image_0"))
     rightimages = load_images(os.path.join(image_path, "image_1"))
-    # n_clusters = 50
-    # n_features = 100
+    n_clusters = 50
+    n_features = 100
+    bow_threshold = 100
+
     #
-    # bow = BoW(n_clusters, n_features)
-    # bow.train(leftimages)
+    bow = BoW(n_clusters, n_features)
+    bow.train(leftimages)
 
     # Load K and P from the calibration file
     K_left, P_left, K_right, P_right = load_calib(image_path+"calib.txt")
@@ -66,9 +69,10 @@ def main():
     #     rightimages[i] = cv2.flip(rightimages[i],1)
 
     print("FU")
-    key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[0],max_number_of_kp=200)
-    for i in range(len(leftimages)-1):
-        print(i,"/",len(leftimages))
+    offset = 0
+    key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[offset],max_number_of_kp=200)
+    for i in range(offset, len(leftimages)-1):
+        # print(i,"/",len(leftimages))
         # ----------------- TRACKING AND LOCAL MAPPING -------------------- #
         key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=200)
         key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=200)
@@ -84,7 +88,7 @@ def main():
                           key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i, max_Distance=500)
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=70)
-        print(len(trackable_3D_points_time_i))
+        # print(len(trackable_3D_points_time_i))
         if len(trackable_3D_points_time_i) > 4:
             transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
@@ -115,7 +119,12 @@ def main():
         descriptors_left_time_i = descriptors_left_time_i1
 
         # ---------------------------- LOOP CLOSURE -------------------------- #
-        # idx, val = bow.predict_previous(leftimages[i], i, 100)
+        idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
+        if val < 45 and val > 0:
+            print("Frame: ", i, ". Val: ", val, ". idx: " , idx)
+            break
+            cv2.waitKey(0)
+            bow_threshold = i + 100
         # print(idx, val)
 
         # ----- Show the image with the found keypoints in red dots -----
