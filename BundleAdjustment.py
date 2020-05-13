@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse import lil_matrix
 from scipy.optimize import least_squares
+import cv2
 
 BASE_URL = "http://grail.cs.washington.edu/projects/bal/data/ladybug/"
 FILE_NAME = "problem-49-7776-pre.txt.bz2"
@@ -77,20 +78,40 @@ def rotate(Qs, rot_vecs):
 
     return cos_theta * Qs + sin_theta * np.cross(v, Qs) + dot * (1 - cos_theta) * v
 
-
 def project(Qs, cam_params):
-    """Convert 3-D points to 2-D by projecting onto images."""
-    qs_proj = rotate(Qs, cam_params[:, :3])
-    qs_proj += cam_params[:, 3:6]
-    # print(np.shape(qs_proj))
-    #print(qs_proj)
-    # print(qs_proj[2])
-    qs_proj = -qs_proj[:, :2] / qs_proj[:, 2, np.newaxis]
-    f, k1, k2 = cam_params[:, 6:].T
-    n = np.sum(qs_proj ** 2, axis=1)
-    r = 1 + k1 * n + k2 * n ** 2
-    qs_proj *= (r * f)[:, np.newaxis]
+    f = float(cam_params[0][6])
+    cam_mat = np.array([[f, 0,0],[0, f, 0],[0,0,0]])
+    qs_proj,_ = cv2.projectPoints(Qs[0], cam_params[0][:3], cam_params[0][3:6], cam_mat, np.zeros(4))
+    qs_proj = np.array(qs_proj.ravel())
+    for pik in range(1,len(Qs)):
+        # print(cam_params[pik])
+        qs_temp,_ = cv2.projectPoints(Qs[pik], cam_params[pik][:3], cam_params[pik][3:6], cam_mat, np.zeros(4))
+        qs_temp = qs_temp.ravel()
+        # print(qs_temp)
+        qs_proj = np.vstack((qs_proj, qs_temp))
+        if pik
+
+    print(np.shape(qs_proj))
     return qs_proj
+# for i in range(10):
+# 	hej = np.array([3,4])
+# 	pik = np.vstack((pik,hej))
+#
+# print(pik)
+
+# def project(Qs, cam_params):
+#     """Convert 3-D points to 2-D by projecting onto images."""
+#     qs_proj = rotate(Qs, cam_params[:, :3])
+#     qs_proj += cam_params[:, 3:6]
+#     # print(np.shape(qs_proj))
+#     #print(qs_proj)
+#     # print(qs_proj[2])
+#     qs_proj = -qs_proj[:, :2] / qs_proj[:, 2, np.newaxis]
+#     f, k1, k2 = cam_params[:, 6:].T
+#     n = np.sum(qs_proj ** 2, axis=1)
+#     r = 1 + k1 * n + k2 * n ** 2
+#     qs_proj *= (r * f)[:, np.newaxis]
+#     return qs_proj
 
 
 def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
@@ -101,9 +122,9 @@ def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
     cam_params = params[:n_cams * 9].reshape((n_cams, 9))
     Qs = params[n_cams * 9:].reshape((n_Qs, 3))
     qs_proj = project(Qs[Q_idxs], cam_params[cam_idxs])
-    cnt = 0
-    for proj in range(0, len(qs_proj)):
-        if abs(qs_proj[proj][0]) > 1000000 or abs(qs_proj[proj][1]) > 1000000 or proj == 204:
+    # cnt = 0
+    # for proj in range(0, len(qs_proj)):
+    #     if abs(qs_proj[proj][0]) > 100 or abs(qs_proj[proj][1]) > 100:# or proj == 204:
             # print("------------------------------")
             # print("image correspondance number: ",proj)
             # print("frame number: ", cam_idxs[proj])
@@ -111,9 +132,10 @@ def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
             # print("cam params: ",cam_params[cam_idxs][proj]) #rotation vector, tranlation vector, intrinsics
             # print("3D point: ",Qs[Q_idxs][proj])
             # print("******************************")
-
-            cnt += 1
-    print("number of outliers: ", cnt)
+            # cnt += 1
+            # qs_proj[proj][0] = qs[proj][0]
+            # qs_proj[proj][1] = qs[proj][1]
+    # print("number of outliers: ", cnt)
     residual = (qs_proj - qs).ravel() # Vægt
     return residual
 

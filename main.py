@@ -7,7 +7,7 @@ from transformation import *
 from Point3D import *
 from XXXport_files import *
 from orb import *
-from scipy.spatial.transform import Rotation as R
+from BundleAdjustment import *
 
 #TODO: Make this method generic
 def show_image(img1, points1, img2, points2):
@@ -126,36 +126,40 @@ def main():
         # cv2.waitKey(30)
 
 
-    f = open("ourCache/optimizing_matrix.txt", "w")
-    for obj in optimization_matrix:
-        f.write(str(int(obj[0])) + "," + str(int(obj[1])) + "," + str(obj[2]) + "," + str(obj[3]) + "\n")
-    f.close()
-
-    f = open("ourCache/Q.txt", "w")
-    for coords in Qs:
-        f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
-    f.close()
-
-    # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
-    f = open("ourCache/cam_params.txt", "w")
-    # rotmat = camera_frame.pose[:3, :3]
-    # scipy.spatial.transform.Rotation
-    for a in range(len(camera_frames)):
-    # for a in range(1):
-        rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
-        r_VEC = rotmat.as_rotvec()
-        f.write(str(r_VEC[0]) + "\n" + str(r_VEC[1]) + "\n" + str(r_VEC[2]) + "\n")
-        f.write(str(camera_frames[a].pose[0, 3]) + "\n" + str(camera_frames[a].pose[1, 3]) + "\n" + str(
-            camera_frames[a].pose[2, 3]) + "\n")
-        f.write(str(P_left[0][0]) + "\n0\n0\n")
-    f.close()
-
     print("Final frame pose: \n", camera_frames[len(camera_frames) - 1].pose,
           "\n\n")  # Det er denne vi skal have exporteret så det bliver vist rigtigt i MATLAB
     print("Real frame: \n", poses[-1], "\n\n")
     print("Difference: \n", np.abs(camera_frame.pose - poses[-1]), "\n\n")
 
     cv2.destroyAllWindows()
+
+    export_data(optimization_matrix, camera_frames, Qs, P_left)
+    # run_BA()
+    # f = open("ourCache/optimizing_matrix.txt", "w")
+    # for obj in optimization_matrix:
+    #     f.write(str(int(obj[0])) + "," + str(int(obj[1])) + "," + str(obj[2]) + "," + str(obj[3]) + "\n")
+    # f.close()
+    #
+    # f = open("ourCache/Q.txt", "w")
+    # for coords in Qs:
+    #     f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
+    # f.close()
+    #
+    # # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
+    # f = open("ourCache/cam_params.txt", "w")
+    # # rotmat = camera_frame.pose[:3, :3]
+    # # scipy.spatial.transform.Rotation
+    # for a in range(len(camera_frames)):
+    # # for a in range(1):
+    #     rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
+    #     r_VEC = rotmat.as_rotvec()
+    #     f.write(str(r_VEC[0]) + "\n" + str(r_VEC[1]) + "\n" + str(r_VEC[2]) + "\n")
+    #     f.write(str(camera_frames[a].pose[0, 3]) + "\n" + str(camera_frames[a].pose[1, 3]) + "\n" + str(
+    #         camera_frames[a].pose[2, 3]) + "\n")
+    #     f.write(str(P_left[0][0]) + "\n0\n0\n")
+    # f.close()
+
+
 
     """ rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
         r_VEC = rotmat.as_rotvec()

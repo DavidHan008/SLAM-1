@@ -7,7 +7,7 @@ def clear_textfile(file_path):
 
 
 def save3DPoints(file_name, points, frame):
-    f = open("3DPoints.txt", 'a')
+    f = open(file_name, 'a')
     for x, y, z in points:
         f.write(str(x) +", "+ str(y) +", " + str(z)+ ","+ str(frame)+"\n")
     f.close()
@@ -47,7 +47,7 @@ def export_data(optimization_matrix,camera_frames, Qs, P_left):
             str(int(np.shape(optimization_matrix)[0]))+"\n")
 
     for obj in optimization_matrix:
-        f.write(str(int(obj[0])) + " " + str(int(obj[1])) + " " + str(obj[2]) + " " + str(obj[3]) + "\n")
+        f.write(str(int(obj[0])) + " " + str(int(obj[1])) + " " + str(obj[2]-(1226/2)) + " " + str(obj[3]-370/2) + "\n")
 
     for a in range(len(camera_frames)-1):
     # for a in range(1):
