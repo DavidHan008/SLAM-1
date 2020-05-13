@@ -1,193 +1,169 @@
 from tracking import *
+from keyframe import *
 from visual_odometry_solution_methods import *
-import cv2
-
-
-def get_descriptors(kp_id, kp, des):
-    des_res = []
-    for i in range(len(kp_id)):
-        for j in range(len(kp)):
-            if kp_id[i][0] == kp[j].pt[0] and kp_id[i][1] == kp[j].pt[1]:
-                for k in range(len(des[j])):
-                    des_res.append(des[j][k])
-                break
-    des_res = np.reshape(des_res, (-1,32))
-    return des_res
-
-def from_imagecoords_to_keypoints(q):
-    return_array = []
-    for u,v in q:
-        return_array.append(cv2.KeyPoint(u,v,31.0))
-    return return_array
-
+from bag_of_words import *
+from keypoint import *
+from transformation import *
+from Point3D import *
+from XXXport_files import *
+from orb import *
+from scipy.spatial.transform import Rotation as R
 
 #TODO: Make this method generic
 def show_image(img1, points1, img2, points2):
-    img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
+    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (255,0,255), (255,255,0),(0,255,255), (125,125,0)]
+    cnt = 0
+    imgfirst = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
     for u, v in points1:
-        cv2.circle(img1, (u, v), 5, (0, 0, 255), -1, cv2.LINE_AA)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
+        cv2.circle(imgfirst, (u, v), 2, colors[cnt%len(colors)], -1, cv2.LINE_AA)
+        cnt +=1
+    imgsecond = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
+    cnt = 0
     for u, v in points2:
-        cv2.circle(img2, (u, v), 5, (0, 0, 255), -1, cv2.LINE_AA)
-    cv2.imshow("Time 1", img1)
-    cv2.imshow("Time 0", img2)
-    cv2.waitKey()
+        cv2.circle(imgsecond, (u, v), 3, colors[cnt%len(colors)], -1, cv2.LINE_AA)
+        cnt +=1
+    cv2.imshow("Time 1", imgfirst)
+    cv2.imshow("Time 0", imgsecond)
+    cv2.waitKey(250)
 
-
-def find_intersection(array1, array2):
-    nrows, ncols = array1.shape
-    dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
-             'formats': ncols * [array1.dtype]}
-    trackable_points_time0, indx1, indx2 = np.intersect1d(array1.view(dtype),
-                                                          array2.view(dtype), return_indices=True)
-    trackable_points_time0 = trackable_points_time0.view(array1.dtype).reshape(-1, ncols)
-    return trackable_points_time0, indx1, indx2
-
-
-# Returns the indices as array2[array1]
-def extract_indices(array1, array2):
-    right_idx = []
-
-    for i in range(len(array1)):
-        for j in range(len(array2)):
-            if array2[j][0] == array1[i][0] and array2[j][1] == array1[i][1]:
-                right_idx.append(j)
-                break
-    return right_idx
 
 
 def main():
-    image_path = "../KITTI_sequence_1/"
-
+    # image_path = "../KITTI_sequence_2/"
+    image_path = "../dataset/sequences/06/"
     # Load the images of the left and right camera
-    leftimages = load_images(os.path.join(image_path, "image_l"))
-    rightimages = load_images(os.path.join(image_path, "image_r"))
+    leftimages = load_images(os.path.join(image_path, "image_0"))
+    rightimages = load_images(os.path.join(image_path, "image_1"))
+    n_clusters = 50
+    n_features = 100
+    bow_threshold = 100
+
+    #
+    bow = BoW(n_clusters, n_features)
+    bow.train(leftimages)
 
     # Load K and P from the calibration file
-    K_l, P_l, K_r, P_r = load_calib("../KITTI_sequence_1/calib.txt")
+    K_left, P_left, K_right, P_right = load_calib(image_path+"calib.txt")
+    poses = load_poses(image_path+"poses.txt")
 
-    # Find the keypoints and descriptors of the first image in the left camera
-    kp1_l, des1_l = orb_extraction(leftimages[0])
+    camera_frame = np.eye(4)
+    rvec = np.array([0,0,0])
+    tvec = np.array([0,0,0])
+    camera_frames = []
+    camera_frame_pose = np.eye(4)
+    camera_frame = KeyFrame(camera_frame_pose)
+    camera_frames.append(camera_frame)
 
-    temp_kp = kp1_l[23]
-    temp_des = des1_l[23]
+    frame_numbers = []
+    Qs = []             # 3D points
+    observations = []   # An array that includes frameindex, 3Dpoint index and 2D point in that frame
 
-    # Find which keypoints are trackable between left and right image at time = 0
-    points_left_right_time0, points_right_time0 = track_keypoints(leftimages[0],rightimages[0], kp1_l)
 
-    # Find which keypoints are trackable between left image at time = 0 and left image at time = 1
-    points_left_time0, points_left_time1 = track_keypoints(leftimages[0], leftimages[1], kp1_l)
+    clear_textfile("ourCache/path" +str(image_path[-2]) +".txt")
+    clear_textfile("ourCache/3DPoints.txt")
 
-    # Find the intersection between the trackable points
-    trackable_points_time0, indx1, indx2 = find_intersection(points_left_right_time0, points_left_time0)
+    optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
+    # for i in range(len(leftimages)):
+    #     leftimages[i] = cv2.flip(leftimages[i],1)
+    #     rightimages[i] = cv2.flip(rightimages[i],1)
 
-    # The trackable points seen from the left camera
-    trackpoints_left = points_left_right_time0[indx1]
+    print("FU")
+    offset = 0
+    key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[offset],max_number_of_kp=200)
+    for i in range(offset, len(leftimages)-1):
+        # print(i,"/",len(leftimages))
+        # ----------------- TRACKING AND LOCAL MAPPING -------------------- #
+        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=200)
+        key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=200)
 
-    right_idx = extract_indices(trackpoints_left, points_left_right_time0)
+        trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, \
+        trackable_descriptors_left_time_i, trackable_descriptors_right_time_i = track_keypoints_left_to_right_new(key_points_left_time_i,
+                                          descriptors_left_time_i, key_points_right_time_i, descriptors_right_time_i, leftimages[i], rightimages[i])
 
-    # The trackable points as seen from the right camera
-    trackpoints_right = points_right_time0[right_idx]
+        relative_triangulated_3D_points_time_i = triangulate_points_local(trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, P_left, P_right)
 
-    # Triangulate the common points of all 3 views
-    triangulatedPts = triangulate_points(np.transpose(trackpoints_left), np.transpose(trackpoints_right), P_l, P_r)
+        trackable_left_imagecoordinates_time_i1, trackable_3D_points_time_i, imagecoords_left_time_i \
+            = find_2D_and_3D_correspondenses(trackable_descriptors_left_time_i, trackable_keypoints_left_time_i,
+                          key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i, max_Distance=500)
 
-    # show_image(leftimages[0],trackpoints_left, rightimages[0], trackpoints_right)
+        close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=70)
+        # print(len(trackable_3D_points_time_i))
+        if len(trackable_3D_points_time_i) > 4:
+            transformation_matrix = calculate_transformation_matrix(trackable_3D_points_time_i,
+                                                                    trackable_left_imagecoordinates_time_i1,
+                                                                    close_3D_points_index, far_3D_points_index, K_left)
 
-    kp2, des2 = orb_extraction(leftimages[1])
-    des_t1 = get_descriptors(trackpoints_left, kp1_l, des1_l)
-    trackpoints_left = from_imagecoords_to_keypoints(trackpoints_left)
-    img1, img2 = get_matches(trackpoints_left, des_t1, kp2, des2)
+
+        camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
+        camera_frame = KeyFrame(camera_frame_pose)
+        camera_frames.append(camera_frame)
+
+        absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame.pose)
+        Qs, opt = appendKeyPoints(Qs, absPoint, 0.01, imagecoords_left_time_i, i, trackable_3D_points_time_i)
+        optimization_matrix = np.vstack((optimization_matrix,opt))
+        save3DPoints("ourCache/3DPoints.txt", absPoint, i)
+        f = open("ourCache/path" +str(image_path[-2]) +".txt", "a")
+        f.write(str(camera_frame.pose[0,3])+","+str(camera_frame.pose[1,3])+"," + str(camera_frame.pose[2,3])+','+str(camera_frame.pose[0,0])+","+str(camera_frame.pose[0,1])+"," + str(camera_frame.pose[0,2])+','+str(camera_frame.pose[1,0])+","+str(camera_frame.pose[1,1])+"," + str(camera_frame.pose[1,2])+','+str(camera_frame.pose[2,0])+","+str(camera_frame.pose[2,1])+"," + str(camera_frame.pose[2,2])+"\n")
+        f.close()
+        key_points_left_time_i = key_points_left_time_i1
+        descriptors_left_time_i = descriptors_left_time_i1
+
+        # ---------------------------- LOOP CLOSURE -------------------------- #
+        idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
+        if val < 45 and val > 0:
+            print("Frame: ", i, ". Val: ", val, ". idx: " , idx)
+            # break
+            # cv2.waitKey(0)
+            bow_threshold = i + 100
+        # print(idx, val)
+
+        # ----- Show the image with the found keypoints in red dots -----
+        # imgfirst = leftimages[i+1]
+        # imgfirst = cv2.cvtColor(imgfirst, cv2.COLOR_GRAY2BGR)
+        # for u, v in trackable_left_imagecoordinates_time_i1:
+        #     cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
+        # cv2.imshow("hej", imgfirst)
+        # cv2.waitKey(30)
+
+
+    f = open("ourCache/optimizing_matrix.txt", "w")
+    for obj in optimization_matrix:
+        f.write(str(int(obj[0])) + "," + str(int(obj[1])) + "," + str(obj[2]) + "," + str(obj[3]) + "\n")
+    f.close()
+
+    f = open("ourCache/Q.txt", "w")
+    for coords in Qs:
+        f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
+    f.close()
+
+    # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
+    f = open("ourCache/cam_params.txt", "w")
+    # rotmat = camera_frame.pose[:3, :3]
+    # scipy.spatial.transform.Rotation
+    for a in range(len(camera_frames)):
+    # for a in range(1):
+        rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
+        r_VEC = rotmat.as_rotvec()
+        f.write(str(r_VEC[0]) + "\n" + str(r_VEC[1]) + "\n" + str(r_VEC[2]) + "\n")
+        f.write(str(camera_frames[a].pose[0, 3]) + "\n" + str(camera_frames[a].pose[1, 3]) + "\n" + str(
+            camera_frames[a].pose[2, 3]) + "\n")
+        f.write(str(P_left[0][0]) + "\n0\n0\n")
+    f.close()
+
+    print("Final frame pose: \n", camera_frames[len(camera_frames) - 1].pose,
+          "\n\n")  # Det er denne vi skal have exporteret så det bliver vist rigtigt i MATLAB
+    print("Real frame: \n", poses[-1], "\n\n")
+    print("Difference: \n", np.abs(camera_frame.pose - poses[-1]), "\n\n")
+
+    cv2.destroyAllWindows()
+
+    """ rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
+        r_VEC = rotmat.as_rotvec()
+        f.write(str(r_VEC[0])+"\n" + str(r_VEC[1])+"\n" +str(r_VEC[2]) +"\n")
+        f.write(str(camera_frames[a].pose[0,3])+"\n"+str(camera_frames[a].pose[1,3])+"\n" + str(camera_frames[a].pose[2,3])+"\n")
+        f.write(str(P_left[0][0])+"\n0\n0\n")"""
+
 
 
 if __name__ == '__main__':
     main()
-# for i in triangluatedPts1:
-#     print(i)
-
-
-# print(np.shape(trackpoints_left))
-# print(np.shape(trackpoints_right))
-
-
-#
-# kp1_r, des1_r = orb_extraction(rightimages[0])
-# q1_l, q1_r = get_matches(kp1_l, des1_l, kp1_r, des1_r)
-# #img = cv2.drawKeypoints(leftimages[0], kp1, np.array([]), (0, 0, 255))
-# #show_image(img)
-#
-# K_l, P_l, K_r, P_r = load_calib("../KITTI_sequence_1/calib.txt")
-# q1_l = np.transpose(q1_l)
-# q1_r = np.transpose(q1_r)
-#
-# triangluatedPts1 = triangulate_points(q1_l, q1_r, P_l, P_r)  # All coordinates have both positive and negative values ?
-#
-# kp2_l, des2_l = orb_extraction(leftimages[1])
-# kp2_r, des2_r = orb_extraction(rightimages[1])
-# q2_l, q2_r = get_matches(kp2_l, des2_l, kp2_r, des2_r)
-#
-# #img = cv2.drawKeypoints(leftimages[0], kp1, np.array([]), (0, 0, 255))
-# #show_image(img)
-#
-# q2_l = np.transpose(q2_l)
-# q2_r = np.transpose(q2_r)
-#
-# triangluatedPts2 = triangulate_points(q2_l, q2_r, P_l, P_r)  # All coordinates have both positive and negative values ?
-#
-# # print(triangluatedPts1)
-# # print(triangluatedPts2)
-# #
-# # print(np.shape(triangluatedPts1))
-# # print(np.shape(triangluatedPts2))
-#
-# ql_vertical, q2_vertical = get_matches(kp1_l,des1_l,kp2_l,des2_l)
-#
-# # print(np.shape(ql_vertical))
-# # print(np.shape(q2_vertical))
-#
-#
-
-
-#for i in range(2,len(leftimages)):
-
-
-# TRACKING
-# ORB Extraction
-# Initial Pose Estimation from Previous Frame
-# OR
-# Initial Pose Estimation via Global Relocalization
-# Track Local Map
-# New KeyFrame Decision
-
-
-# LOCAL MAPPING
-# KeyFrame Insertion
-# Recent MapPoints Culling
-# New MapPoint Creation
-# Local BA
-# Local KeyFrame Culling
-
-
-
-
-# LOOP CLOSURE
-# Loop Candidates Detection
-# Compute Similarity Transform
-# Loop Fusion
-# Essential Graph Optimization
-
-
-
-
-# KeyFrame
-# Includes a pose
-# (Includes camera intrinsics)
-# Includes ORB Features
-
-# COVISIBILITY GRAPH
-
-
-# ESSENTIAL GRAPH
-
-
-# MAPPOINT

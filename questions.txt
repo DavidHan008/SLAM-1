@@ -3,3 +3,9 @@
 # Hvorfor bruger vi knn i get_matches?
 # How do we determine if tracking was succesful?
 # All coordinates have both positive and negative values ?
+# When we have detected loops, how do we merge "frames"?
+
+
+
+
+#hvorfor er pt i keyvalues ikke integers?

@@ -1,0 +1,8 @@
+#TODO: getRoute function that takes in camera_frames and returns array with x,y,z positions
+#TODO: Implement both relative and absolute camera_pose
+#TODO: Save 3DPoints in the end
+#TODO: Save 3D points running
+#TODO: Instead of saying two 3D points are the same within a dist, also take into account the distance from the camera frame
+#TODO: Remove outliers
+#TODO: Identify keyframes
+#TODO: BoW needs to use the previously computed keypoint/descriptor pairs
