@@ -32,6 +32,14 @@ for i=1:size(data,1)-1
     line([data(i,4),data(i+1,4)],[data(i,12),data(i+1,12)], 'color', 'red', 'linewidth',3);
 end
 
+data_actual = load('C:\Users\test\Desktop\skoli2020f\project\SLAM\ourCache\cam_frames.txt');
+
+
+
+for i=1:size(data_actual,1)-1
+    line([data_actual(i,4),data_actual(i+1,4)],[data_actual(i,12),data_actual(i+1,12)], 'color', 'k', 'linewidth',3);
+end
+
 
 
 d2 = load('C:\Users\test\Desktop\skoli2020f\project\SLAM\ourCache\path6.txt');

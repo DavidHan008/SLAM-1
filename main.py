@@ -106,8 +106,8 @@ def main():
 
             wrong_frame = np.matmul(camera_frame.pose, transformation_matrix)
             error_frame = find_error(camera_frame_pose, wrong_frame)
-            error_frame = get_distribution_error(error_frame, idx, i)
-            camera_frames = distribute_error(camera_frames, error_frame, idx, i)
+            error_frame = get_distribution_error(error_frame, idx, i + 1)
+            camera_frames = distribute_error(camera_frames, error_frame, idx, i + 1)
         else:
             camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
         camera_frame = KeyFrame(camera_frame_pose)
@@ -124,12 +124,12 @@ def main():
         descriptors_left_time_i = descriptors_left_time_i1
 
         # ----- Show the image with the found keypoints in red dots -----
-        imgfirst = leftimages[i+1]
-        imgfirst = cv2.cvtColor(imgfirst, cv2.COLOR_GRAY2BGR)
-        for u, v in trackable_left_imagecoordinates_time_i1:
-            cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
-        cv2.imshow("hej", imgfirst)
-        cv2.waitKey(30)
+        # imgfirst = leftimages[i+1]
+        # imgfirst = cv2.cvtColor(imgfirst, cv2.COLOR_GRAY2BGR)
+        # for u, v in trackable_left_imagecoordinates_time_i1:
+        #     cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
+        # cv2.imshow("hej", imgfirst)
+        # cv2.waitKey(30)
 
 
     print("Final frame pose: \n", camera_frames[len(camera_frames) - 1].pose,
