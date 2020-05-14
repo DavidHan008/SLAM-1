@@ -61,3 +61,11 @@ def export_data(optimization_matrix,camera_frames, Qs, P_left):
     for coords in Qs:
         f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
     f.close()
+
+    f = open("ourCache/cam_frames.txt", "w")
+    for val in camera_frames:
+        for k in range(3):
+            for j in range(4):
+                f.write(str(val.pose[k,j])+" ")
+        f.write("\n")
+    f.close()
