@@ -1,3 +1,4 @@
+#%%
 from tracking import *
 from keyframe import *
 from visual_odometry_solution_methods import *
@@ -8,37 +9,56 @@ from Point3D import *
 from XXXport_files import *
 from orb import *
 from BundleAdjustment import *
+from scipy.spatial.transform import Rotation as R
 
-#TODO: Make this method generic
-def show_image(img1, points1, img2, points2):
-    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (255,0,255), (255,255,0),(0,255,255), (125,125,0)]
-    cnt = 0
-    imgfirst = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
-    for u, v in points1:
-        cv2.circle(imgfirst, (u, v), 2, colors[cnt%len(colors)], -1, cv2.LINE_AA)
-        cnt +=1
-    imgsecond = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
-    cnt = 0
-    for u, v in points2:
-        cv2.circle(imgsecond, (u, v), 3, colors[cnt%len(colors)], -1, cv2.LINE_AA)
-        cnt +=1
-    cv2.imshow("Time 1", imgfirst)
-    cv2.imshow("Time 0", imgsecond)
-    cv2.waitKey(250)
+#%%
+def fit_cam_params(camera_frames, P_left):
+    cam_params = np.empty((0, 9))
+    for i in range(len(camera_frames)):
+        cam_param = np.empty((9))
+
+        trans = camera_frames[i].pose
+        rotvec = R.from_matrix(trans[:3, :3])
+        r = rotvec.as_rotvec()
+
+        cam_param[0] = r[0]
+        cam_param[1] = r[1]
+        cam_param[2] = r[2]
+        cam_param[3] = trans[0, 3]
+        cam_param[4] = trans[1, 3]
+        cam_param[5] = trans[2, 3]
+        cam_param[6] = P_left[0, 0]
+        cam_param[7] = 0
+        cam_param[8] = 0
+        cam_params = np.append(cam_params, cam_param)
+
+    cam_params = cam_params.reshape((-1, 9))
+    return cam_params
 
 
+def write_pose_to_file(file_name, camera_frame):
+    f = open(file_name + ".txt", "a")
+
+    f.write(str(camera_frame.pose[0, 3]) + "," + str(camera_frame.pose[1, 3]) + "," + str(
+        camera_frame.pose[2, 3]) + ',' + str(camera_frame.pose[0, 0]) + "," + str(camera_frame.pose[0, 1]) + "," + str(
+        camera_frame.pose[0, 2]) + ',' + str(camera_frame.pose[1, 0]) + "," + str(camera_frame.pose[1, 1]) + "," + str(
+        camera_frame.pose[1, 2]) + ',' + str(camera_frame.pose[2, 0]) + "," + str(camera_frame.pose[2, 1]) + "," + str(
+        camera_frame.pose[2, 2]) + "\n")
+    f.close()
 
 def main():
     # image_path = "../KITTI_sequence_2/"
-    image_path = "../dataset/sequences/06/"
+    n_images = 100
+    image_path = "../data_odometry_gray/dataset/sequences/06/"
     # Load the images of the left and right camera
     leftimages = load_images(os.path.join(image_path, "image_0"))
+    # leftimages = leftimages[:n_images]
     rightimages = load_images(os.path.join(image_path, "image_1"))
+    # rightimages = rightimages[:100]
     n_clusters = 50
     n_features = 100
     bow_threshold = 100
 
-    #
     bow = BoW(n_clusters, n_features)
     bow.train(leftimages)
 
@@ -55,26 +75,27 @@ def main():
     camera_frames.append(camera_frame)
 
     frame_numbers = []
-    Qs = []             # 3D points
+    Qs = np.empty((0, 3))             # 3D points
     observations = []   # An array that includes frameindex, 3Dpoint index and 2D point in that frame
+
+    points_2d = np.empty((0, 2), dtype=int)
+    frame_indices = np.empty((0, 1), dtype=int)
+    point_indices = np.empty((0, 1), dtype=int)
 
 
     clear_textfile("ourCache/path" +str(image_path[-2]) +".txt")
     clear_textfile("ourCache/3DPoints.txt")
 
     optimization_matrix = np.empty((0,4))        # frame nr, 3d_index and 2d coordinate
-    # for i in range(len(leftimages)):
-    #     leftimages[i] = cv2.flip(leftimages[i],1)
-    #     rightimages[i] = cv2.flip(rightimages[i],1)
 
-    print("FU")
+    print("Så kører vi sgu")
     offset = 0
+
+#%%
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[offset],max_number_of_kp=200)
     for i in range(offset, len(leftimages)-1):
-        # print(i,"/",len(leftimages))
-        # ----------------- TRACKING AND LOCAL MAPPING -------------------- #
-        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i],max_number_of_kp=200)
-        key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1],max_number_of_kp=200)
+        key_points_right_time_i, descriptors_right_time_i = orb_detector_using_tiles(rightimages[i], max_number_of_kp=200)
+        key_points_left_time_i1, descriptors_left_time_i1 = orb_detector_using_tiles(leftimages[i+1], max_number_of_kp=200)
 
         trackable_keypoints_left_time_i, trackable_keypoints_right_time_i, \
         trackable_descriptors_left_time_i, trackable_descriptors_right_time_i = track_keypoints_left_to_right_new(key_points_left_time_i,
@@ -87,7 +108,7 @@ def main():
                           key_points_left_time_i1, descriptors_left_time_i1, relative_triangulated_3D_points_time_i, max_Distance=500)
 
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=70)
-        # print(len(trackable_3D_points_time_i))
+
         if len(trackable_3D_points_time_i) > 4:
             transformation_matrix = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
@@ -99,75 +120,36 @@ def main():
         camera_frames.append(camera_frame)
 
         absPoint = relative_to_abs3DPoints(trackable_3D_points_time_i, camera_frame.pose)
+        # Qs, opt, frame_index = appendKeyPoints(Qs, absPoint, 0.01, imagecoords_left_time_i, i, trackable_3D_points_time_i)
         Qs, opt = appendKeyPoints(Qs, absPoint, 0.01, imagecoords_left_time_i, i, trackable_3D_points_time_i)
+        point_ind = opt[:, 1]
+        point_indices = np.append(point_indices, point_ind.astype(int))
+
         optimization_matrix = np.vstack((optimization_matrix,opt))
         save3DPoints("ourCache/3DPoints.txt", absPoint, i)
-        f = open("ourCache/path" +str(image_path[-2]) +".txt", "a")
-        f.write(str(camera_frame.pose[0,3])+","+str(camera_frame.pose[1,3])+"," + str(camera_frame.pose[2,3])+','+str(camera_frame.pose[0,0])+","+str(camera_frame.pose[0,1])+"," + str(camera_frame.pose[0,2])+','+str(camera_frame.pose[1,0])+","+str(camera_frame.pose[1,1])+"," + str(camera_frame.pose[1,2])+','+str(camera_frame.pose[2,0])+","+str(camera_frame.pose[2,1])+"," + str(camera_frame.pose[2,2])+"\n")
-        f.close()
+
+        write_pose_to_file(os.path.join(image_path, "ourCache/path"), camera_frame)
+
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1
 
-        # ---------------------------- LOOP CLOSURE -------------------------- #
-        idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
-        if val < 45 and val > 0:
-            print("Frame: ", i, ". Val: ", val, ". idx: " , idx)
-            # break
-            # cv2.waitKey(0)
-            bow_threshold = i + 100
-        # print(idx, val)
+        for p in range(len(imagecoords_left_time_i)):
+            points_2d = np.append(points_2d, imagecoords_left_time_i[p])
 
-        # ----- Show the image with the found keypoints in red dots -----
-        # imgfirst = leftimages[i+1]
-        # imgfirst = cv2.cvtColor(imgfirst, cv2.COLOR_GRAY2BGR)
-        # for u, v in trackable_left_imagecoordinates_time_i1:
-        #     cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
-        # cv2.imshow("hej", imgfirst)
-        # cv2.waitKey(30)
+        for j in range(len(absPoint)):
+            frame_indices = np.append(frame_indices, i)
 
+        # Make camera_params fit adjust my bundle
+    camera_params = fit_cam_params(camera_frames, P_left)
 
-    print("Final frame pose: \n", camera_frames[len(camera_frames) - 1].pose,
-          "\n\n")  # Det er denne vi skal have exporteret så det bliver vist rigtigt i MATLAB
-    print("Real frame: \n", poses[-1], "\n\n")
-    print("Difference: \n", np.abs(camera_frame.pose - poses[-1]), "\n\n")
+    points_2d = points_2d.reshape((-1, 2))
 
-    cv2.destroyAllWindows()
+    res = adjust_my_bundle(camera_params, Qs, frame_indices, point_indices, points_2d)
 
-    export_data(optimization_matrix, camera_frames, Qs, P_left)
-    # run_BA()
-    # f = open("ourCache/optimizing_matrix.txt", "w")
-    # for obj in optimization_matrix:
-    #     f.write(str(int(obj[0])) + "," + str(int(obj[1])) + "," + str(obj[2]) + "," + str(obj[3]) + "\n")
-    # f.close()
-    #
-    # f = open("ourCache/Q.txt", "w")
-    # for coords in Qs:
-    #     f.write(str(coords[0]) + "\n" + str(coords[1]) + "\n" + str(coords[2]) + "\n")
-    # f.close()
-    #
-    # # Write camera r1, r2, r3, t1, t2, t3, f, k1, k2
-    # f = open("ourCache/cam_params.txt", "w")
-    # # rotmat = camera_frame.pose[:3, :3]
-    # # scipy.spatial.transform.Rotation
-    # for a in range(len(camera_frames)):
-    # # for a in range(1):
-    #     rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
-    #     r_VEC = rotmat.as_rotvec()
-    #     f.write(str(r_VEC[0]) + "\n" + str(r_VEC[1]) + "\n" + str(r_VEC[2]) + "\n")
-    #     f.write(str(camera_frames[a].pose[0, 3]) + "\n" + str(camera_frames[a].pose[1, 3]) + "\n" + str(
-    #         camera_frames[a].pose[2, 3]) + "\n")
-    #     f.write(str(P_left[0][0]) + "\n0\n0\n")
-    # f.close()
-
-
-
-    """ rotmat = R.from_matrix(camera_frames[a].pose[:3, :3])
-        r_VEC = rotmat.as_rotvec()
-        f.write(str(r_VEC[0])+"\n" + str(r_VEC[1])+"\n" +str(r_VEC[2]) +"\n")
-        f.write(str(camera_frames[a].pose[0,3])+"\n"+str(camera_frames[a].pose[1,3])+"\n" + str(camera_frames[a].pose[2,3])+"\n")
-        f.write(str(P_left[0][0])+"\n0\n0\n")"""
-
-
+#%%
+        # Save the stuff
 
 if __name__ == '__main__':
     main()
+
+
