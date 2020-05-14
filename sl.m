@@ -1,6 +1,6 @@
 clc;clear
 %%
-data = load('C:\Users\test\Desktop\skoli2020f\project\KITTI_sequence_1\poses.txt');
+data = load('..\KITTI_sequence_1\poses.txt');
 figure
 hold on
 
@@ -23,7 +23,7 @@ hold off
 %%
 clc,clear; close all
 %data = load('C:\VisionPyhton\Project\KITTI_sequence_2\poses.txt');
-data = load('C:\Users\test\Desktop\skoli2020f\project\data_odometry_gray\dataset\sequences\06\06.txt');
+data = load('C:\Users\Ole\Desktop\Project\dataset\sequences\06\poses.txt');
 figure
 hold on
 
@@ -32,7 +32,7 @@ for i=1:size(data,1)-1
     line([data(i,4),data(i+1,4)],[data(i,12),data(i+1,12)], 'color', 'red', 'linewidth',3);
 end
 
-data_actual = load('C:\Users\test\Desktop\skoli2020f\project\SLAM\ourCache\cam_frames.txt');
+data_actual = load('C:\Users\Ole\Desktop\Project\SLAM\ourCache\cam_frames.txt');
 
 
 
@@ -42,7 +42,7 @@ end
 
 
 
-d2 = load('C:\Users\test\Desktop\skoli2020f\project\SLAM\ourCache\path6.txt');
+d2 = load('C:\Users\Ole\Desktop\Project\SLAM\ourCache\path6.txt');
 %data = data(1:100,:)
 %d2(:,3) = d2(:,3).*(-1);
 % d2(:,1) = d2(:,1).*(-1);
@@ -70,3 +70,6 @@ hold off
 % 
 % 
 % hold off
+%%
+
+dat = csvread('cam_frames_relative.txt')

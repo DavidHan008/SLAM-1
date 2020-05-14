@@ -12,9 +12,11 @@ def calculate_transformation_matrix(trackable_3D_points_time_i, trackable_left_i
                                                                        track2dPoints, K_left,
                                                                        np.zeros(5))
 
+    rotation_vector = -1*rotation_vector
+    translation_vector = -1*translation_vector
     transformation_matrix = translation_and_rotation_vector_to_matrix(rotation_vector, translation_vector)
 
-    return transformation_matrix
+    return transformation_matrix, rotation_vector, translation_vector
 
 
 
@@ -22,9 +24,6 @@ def translation_and_rotation_vector_to_matrix(rotvec, transvec):
     # rotm = eulerAnglesToRotationMatrix(rotvec)
     rotm = np.eye(3)
     cv2.Rodrigues(rotvec, rotm)
-
-    rotm = np.linalg.inv(rotm)
-    transvec=-1*transvec
     # print(rotm)
     #transvec[2] = -1 * transvec[2]
     #transvec[1] = -1 * transvec[1]

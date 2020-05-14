@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+
 def clear_textfile(file_path):
     f = open(file_path, "w")
     f.close()
@@ -68,4 +69,26 @@ def export_data(optimization_matrix,camera_frames, Qs, P_left):
             for j in range(4):
                 f.write(str(val.pose[k,j])+" ")
         f.write("\n")
+    f.close()
+
+def export_relative_transformations_matrix(rvec, tvec, index):
+    if index == 0:
+        f = open("ourCache/cam_frames_relative.txt", "w")
+        f.close()
+
+    f = open("ourCache/cam_frames_relative.txt", "a")
+
+    rvec_local = np.array(rvec).ravel()
+    tvec_local = np.array(tvec).ravel()
+
+
+    for r in range(len(rvec_local)):
+        f.write(str(rvec_local[r]) + " ")
+
+
+    for t in range(len(tvec_local)):
+        if t != 2:
+            f.write(str(tvec_local[t]) + " ")
+        else:
+            f.write(str(tvec_local[t]) + "\n")
     f.close()

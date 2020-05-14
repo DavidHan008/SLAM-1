@@ -27,7 +27,7 @@ def close_loop(left_image_0, right_image_0, left_image_i, P_left, P_right, K_lef
     # print(len(trackable_3D_points_time_i))
     transformation_matrix = []
     if len(trackable_3D_points_time_0) > 4:
-        transformation_matrix = calculate_transformation_matrix(trackable_3D_points_time_0,
+        transformation_matrix, _ ,_  = calculate_transformation_matrix(trackable_3D_points_time_0,
                                                                 trackable_left_imagecoordinates_time_i,
                                                                 close_3D_points_index, far_3D_points_index, K_left)
     else:

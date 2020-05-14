@@ -31,7 +31,7 @@ def show_image(img1, points1, img2, points2):
 
 def main():
     # image_path = "../KITTI_sequence_2/"
-    image_path = "../data_odometry_gray/dataset/sequences/06/"
+    image_path = "../dataset/sequences/06/"
     # Load the images of the left and right camera
     leftimages = load_images(os.path.join(image_path, "image_0"))
     rightimages = load_images(os.path.join(image_path, "image_1"))
@@ -68,6 +68,8 @@ def main():
     #     leftimages[i] = cv2.flip(leftimages[i],1)
     #     rightimages[i] = cv2.flip(rightimages[i],1)
 
+    # numbers = list(range(0,50))
+    # numbers = range(700,1000)]
     print("FU")
     offset = 0
     key_points_left_time_i, descriptors_left_time_i = orb_detector_using_tiles(leftimages[offset],max_number_of_kp=200)
@@ -90,10 +92,10 @@ def main():
         close_3D_points_index, far_3D_points_index = sort_3D_points(trackable_3D_points_time_i, close_def_in_m=70)
         # print(len(trackable_3D_points_time_i))
         if len(trackable_3D_points_time_i) > 4:
-            transformation_matrix = calculate_transformation_matrix(trackable_3D_points_time_i,
+            transformation_matrix, rvec, tvec = calculate_transformation_matrix(trackable_3D_points_time_i,
                                                                     trackable_left_imagecoordinates_time_i1,
                                                                     close_3D_points_index, far_3D_points_index, K_left)
-
+        export_relative_transformations_matrix(rvec, tvec, i)
         idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
         if val < 45 and val > 0:
             print("Frame: ", i, ". Val: ", val, ". idx: ", idx)
@@ -102,6 +104,8 @@ def main():
                                                 K_left)
 
             frame_pose_idx = camera_frames[idx].pose
+            print(np.shape(frame_pose_idx))
+            print(np.shape(new_transformation_mat))
             camera_frame_pose = np.matmul(frame_pose_idx, new_transformation_mat)
 
             wrong_frame = np.matmul(camera_frame.pose, transformation_matrix)

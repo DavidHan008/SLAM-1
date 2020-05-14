@@ -5,8 +5,167 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse import lil_matrix
 from scipy.optimize import least_squares
+from transformation import *
 import cv2
+from scipy.spatial.transform import Rotation as R
 
+def load_data(file_name):
+    number_of_frames = 1100
+    return_val = np.empty((number_of_frames,6))
+    file = open(file_name, 'r')
+
+    for j in range(number_of_frames):
+        nul, et, to, tre, fire, fem= map(float, file.readline().split())
+        return_val[j,0] = nul
+        return_val[j, 1] = et
+        return_val[j, 2] = to
+        return_val[j, 3] = tre
+        return_val[j, 4] = fire
+        return_val[j, 5] = fem
+
+    return return_val.ravel()# np.reshape(return_val, ((-1, 1))).ravel()
+
+
+
+def read_bal_data(file_name):
+
+    # with bz2.open(file_name, "rt") as file:
+    file = open(file_name, 'r')
+    n_cams, n_Qs, n_qs = map(int, file.readline().split())
+
+    cam_idxs = np.empty(n_qs, dtype=int)
+    Q_idxs = np.empty(n_qs, dtype=int)
+    qs = np.empty((n_qs, 2))
+
+    for i in range(n_qs):
+        cam_idx, Q_idx, x, y = file.readline().split()
+        cam_idxs[i] = int(cam_idx)
+        Q_idxs[i] = int(Q_idx)
+        qs[i] = [float(x), float(y)]
+
+    cam_params = np.empty(n_cams * 9)
+    for i in range(n_cams * 9):
+        cam_params[i] = float(file.readline())
+    cam_params = cam_params.reshape((n_cams, -1))
+
+    print("cam_params ", np.shape(cam_params))
+    print(cam_params[-1])
+
+    Qs = np.empty(n_Qs * 3)
+    for i in range(n_Qs * 3):
+        Qs[i] = float(file.readline())
+    Qs = Qs.reshape((n_Qs, -1))
+
+    print("Qs ", np.shape(Qs))
+    print(Qs[0])
+    print(Qs[-1])
+
+    return cam_params, Qs, cam_idxs, Q_idxs, qs
+
+
+def reindex(idxs):
+    keys = np.sort(np.unique(idxs))
+    key_dict = {key: value for key, value in zip(keys, range(keys.shape[0]))}
+    return [key_dict[idx] for idx in idxs]
+
+
+
+def objective(car_params):
+    """Compute residuals.
+
+    `params` contains camera parameters and 3-D coordinates.
+
+    cost function should create costs:
+    change of x high cost
+    change of y high cost
+    change of z low cost
+    rotation about x medium cost
+    rotation about y low cost
+    rotation about z high cost
+
+    when run due to loop closure, there should be an additional contraint that ensures that final frame is \
+    identical to initial frame
+    """
+    car_params_local = np.reshape(car_params,(-1,6))
+    x_cost=1
+    y_cost=1
+    z_cost=0.05
+    rotx_cost=0.5
+    roty_cost=0.05
+    rotz_cost=1
+    cost = abs(car_params_local[:,0])*rotx_cost
+    cost += abs(car_params_local[:,1])*roty_cost
+    cost += abs(car_params_local[:,2])*rotz_cost
+    cost += abs(car_params_local[:,3])*x_cost
+    cost += abs(car_params_local[:,4])*y_cost
+    cost += (abs(car_params_local[:,5])-1)*z_cost #evt (car_params-1)*z_cost   , eller (car_params- (1/|rot_vec|))*z_cost
+
+    rel_tranny = [translation_and_rotation_vector_to_matrix(car_params_local[i][0:3],car_params_local[i][3:6]) for i in range(np.shape(car_params_local)[0])]
+    abs_tranny = np.eye(4)
+    abs_tranny = [np.matmul(abs_tranny,rtranny) for rtranny in rel_tranny]
+
+    cost_last = np.shape(car_params_local)[0]*np.sum(abs_tranny[-1][0:3,3])
+    final = R.from_matrix(abs_tranny[-1][0:3,0:3])
+    final_rotVec = final.as_rotvec()
+    cost_last += np.sum(final_rotVec)*np.shape(car_params_local)[0]
+    cost= np.hstack((cost,cost_last))
+    return cost
+
+
+
+def bundle_adjustment_sparsity(car_params):#n_cams, n_Qs, cam_idxs, Q_idxs):
+    m = np.shape(car_params)[0] +1  # number of residuals
+    n = np.shape(car_params)[0]*6  # number of parameters
+    A = lil_matrix((m, n), dtype=int)
+
+    i = np.arange(np.shape(car_params)[0])
+    for s in range(6):
+        A[i, i * 6 + s] = 1
+    for s in range(n):
+        A[m - 1, s] = 1
+
+    return A
+
+
+def bundle_adjustment_with_sparsity(car_params, sparse_mat):#, Qs, cam_idxs, Q_idxs, qs, sparse_mat):
+    # params = np.hstack((cam_params.ravel(), Qs.ravel()))
+    # residual_init = objective(params, cam_params.shape[0], Qs.shape[0], cam_idxs, Q_idxs, qs)
+    print(np.shape(car_params))
+    residual_init = objective(car_params)
+
+    res = least_squares(objective, car_params, jac_sparsity=sparse_mat, verbose=2, x_scale='jac', ftol=1e-1, method='trf',
+                        args=(1101, car_params))
+    return residual_init, res.fun, res.x
+
+
+def run_BA():
+
+    car_params = load_data("ourCache/cam_frames_relative.txt")
+
+    A = bundle_adjustment_sparsity(car_params)
+
+    residual_init, residual_minimized, opt_params = bundle_adjustment_with_sparsity(car_params, A)
+    x = np.arange(2 * qs.shape[0])
+    plt.subplot(2, 1, 1)
+    plt.title('Bundle adjustment with all parameters')
+    plt.ylabel('Initial residuals')
+    plt.plot(x, residual_init)
+
+    val = np.max(residual_init)
+    idx = np.argmax(residual_init)
+
+    print(np.shape(opt_params))
+
+    plt.subplot(2, 1, 2)
+    plt.ylabel('Optimized residuals') #rasmus klump
+    plt.plot(x, residual_minimized)
+    plt.show()
+
+
+if __name__ == "__main__":
+    run_BA()
+
+"""
 BASE_URL = "http://grail.cs.washington.edu/projects/bal/data/ladybug/"
 FILE_NAME = "problem-49-7776-pre.txt.bz2"
 URL = BASE_URL + FILE_NAME
@@ -64,10 +223,8 @@ def shrink_problem(n, cam_params, Qs, cam_idxs, Q_idxs, qs):
 
 
 def rotate(Qs, rot_vecs):
-    """Rotate points by given rotation vectors.
+    
 
-    Rodrigues' rotation formula is used.
-    """
     theta = np.linalg.norm(rot_vecs, axis=1)[:, np.newaxis]
     with np.errstate(invalid='ignore'):
         v = rot_vecs / theta
@@ -96,7 +253,6 @@ def rotate(Qs, rot_vecs):
 
 
 def project(Qs, cam_params):
-    """Convert 3-D points to 2-D by projecting onto images."""
     qs_proj = rotate(Qs, cam_params[:, :3])
     qs_proj += cam_params[:, 3:6]
     # print(np.shape(qs_proj))
@@ -111,10 +267,7 @@ def project(Qs, cam_params):
 
 
 def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
-    """Compute residuals.
 
-    `params` contains camera parameters and 3-D coordinates.
-    """
     cam_params = params[:n_cams * 9].reshape((n_cams, 9))
     Qs = params[n_cams * 9:].reshape((n_Qs, 3))
     qs_proj = project(Qs[Q_idxs], cam_params[cam_idxs])
@@ -247,3 +400,5 @@ def run_BA():
 
 if __name__ == "__main__":
     run_BA()
+    
+    """
