@@ -8,6 +8,7 @@ from Point3D import *
 from XXXport_files import *
 from orb import *
 from BundleAdjustment import *
+from loop_closure import *
 
 #TODO: Make this method generic
 def show_image(img1, points1, img2, points2):
@@ -30,7 +31,7 @@ def show_image(img1, points1, img2, points2):
 
 def main():
     # image_path = "../KITTI_sequence_2/"
-    image_path = "../dataset/sequences/06/"
+    image_path = "../data_odometry_gray/dataset/sequences/06/"
     # Load the images of the left and right camera
     leftimages = load_images(os.path.join(image_path, "image_0"))
     rightimages = load_images(os.path.join(image_path, "image_1"))
@@ -93,8 +94,17 @@ def main():
                                                                     trackable_left_imagecoordinates_time_i1,
                                                                     close_3D_points_index, far_3D_points_index, K_left)
 
+        idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
+        if val < 45 and val > 0:
+            print("Frame: ", i, ". Val: ", val, ". idx: ", idx)
+            bow_threshold = i + 100
+            new_transformation_mat = close_loop(leftimages[idx], rightimages[idx], leftimages[i], P_left, P_right,
+                                                K_left)
 
-        camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
+            frame_pose_idx = camera_frames[idx].pose
+            camera_frame_pose = np.matmul(frame_pose_idx, new_transformation_mat)
+        else:
+            camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
         camera_frame = KeyFrame(camera_frame_pose)
         camera_frames.append(camera_frame)
 
@@ -109,21 +119,15 @@ def main():
         descriptors_left_time_i = descriptors_left_time_i1
 
         # ---------------------------- LOOP CLOSURE -------------------------- #
-        idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
-        if val < 45 and val > 0:
-            print("Frame: ", i, ". Val: ", val, ". idx: " , idx)
-            # break
-            # cv2.waitKey(0)
-            bow_threshold = i + 100
-        # print(idx, val)
+
 
         # ----- Show the image with the found keypoints in red dots -----
-        # imgfirst = leftimages[i+1]
-        # imgfirst = cv2.cvtColor(imgfirst, cv2.COLOR_GRAY2BGR)
-        # for u, v in trackable_left_imagecoordinates_time_i1:
-        #     cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
-        # cv2.imshow("hej", imgfirst)
-        # cv2.waitKey(30)
+        imgfirst = leftimages[i+1]
+        imgfirst = cv2.cvtColor(imgfirst, cv2.COLOR_GRAY2BGR)
+        for u, v in trackable_left_imagecoordinates_time_i1:
+            cv2.circle(imgfirst, (int(u), int(v)), 5, (0,0,255), -1, cv2.LINE_AA)
+        cv2.imshow("hej", imgfirst)
+        cv2.waitKey(30)
 
 
     print("Final frame pose: \n", camera_frames[len(camera_frames) - 1].pose,

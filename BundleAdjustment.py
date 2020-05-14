@@ -130,7 +130,9 @@ def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
 
 
     for proj in range(0, len(qs_proj)):
-        if abs(qs_proj[proj][0] - qs[proj][0])   qs_proj[proj][0]) > 100 or abs(qs_proj[proj][1]) > 100:# or proj == 204:
+        if abs(qs_proj[proj][0] - qs[proj][0]) > 100 or qs_proj[proj][0] > 100 or abs(qs_proj[proj][1]) > 100:# or proj == 204:
+
+            pass
             # print("------------------------------")
             # print("image correspondance number: ",proj)
             # print("frame number: ", cam_idxs[proj])
