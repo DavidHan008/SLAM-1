@@ -35,3 +35,18 @@ def close_loop(left_image_0, right_image_0, left_image_i, P_left, P_right, K_lef
     print("tranny mat ", transformation_matrix)
     return transformation_matrix
 
+
+def find_error(correct_frame, wrong_frame):
+    return correct_frame - wrong_frame
+
+
+def get_distribution_error(error_frame, index_0, index_i):
+    return error_frame / (index_i - index_0)
+
+
+# Distributes the error over all relevant frames, only translation
+def distribute_error(camera_frames, error_frame, index_0, index_i):
+    for i in range(index_0, index_i):
+        camera_frames[i].pose[:3, 3] += (i - index_0) * error_frame[:3, 3]
+
+    return camera_frames

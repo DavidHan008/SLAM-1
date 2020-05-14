@@ -103,6 +103,11 @@ def main():
 
             frame_pose_idx = camera_frames[idx].pose
             camera_frame_pose = np.matmul(frame_pose_idx, new_transformation_mat)
+
+            wrong_frame = np.matmul(camera_frame.pose, transformation_matrix)
+            error_frame = find_error(camera_frame_pose, wrong_frame)
+            error_frame = get_distribution_error(error_frame, idx, i)
+            camera_frames = distribute_error(camera_frames, error_frame, idx, i)
         else:
             camera_frame_pose = np.matmul(camera_frame.pose, transformation_matrix)
         camera_frame = KeyFrame(camera_frame_pose)
@@ -117,9 +122,6 @@ def main():
         f.close()
         key_points_left_time_i = key_points_left_time_i1
         descriptors_left_time_i = descriptors_left_time_i1
-
-        # ---------------------------- LOOP CLOSURE -------------------------- #
-
 
         # ----- Show the image with the found keypoints in red dots -----
         imgfirst = leftimages[i+1]
