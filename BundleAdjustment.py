@@ -81,17 +81,20 @@ def rotate(Qs, rot_vecs):
 def project(Qs, cam_params):
     f = float(cam_params[0][6])
     cam_mat = np.array([[f, 0,0],[0, f, 0],[0,0,0]])
-    qs_proj,_ = cv2.projectPoints(Qs[0], cam_params[0][:3], cam_params[0][3:6], cam_mat, np.zeros(4))
-    qs_proj = np.array(qs_proj.ravel())
+    temp,_ = cv2.projectPoints(Qs[0], cam_params[0][:3], cam_params[0][3:6], cam_mat, np.zeros(4))
+    temp = np.array(temp.ravel())
+    qs_proj = np.zeros((np.shape(Qs)[0], 2))
+    qs_proj[0,0] = temp[0]
+    qs_proj[0,1] = temp[1]
     for pik in range(1,len(Qs)):
         # print(cam_params[pik])
         qs_temp,_ = cv2.projectPoints(Qs[pik], cam_params[pik][:3], cam_params[pik][3:6], cam_mat, np.zeros(4))
         qs_temp = qs_temp.ravel()
         # print(qs_temp)
-        qs_proj = np.vstack((qs_proj, qs_temp))
-        if pik
+        # qs_proj = np.vstack((qs_proj, qs_temp))
+        qs_proj[pik, 0] = qs_temp[0]
+        qs_proj[pik, 1] = qs_temp[1]
 
-    print(np.shape(qs_proj))
     return qs_proj
 # for i in range(10):
 # 	hej = np.array([3,4])
@@ -123,8 +126,11 @@ def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
     Qs = params[n_cams * 9:].reshape((n_Qs, 3))
     qs_proj = project(Qs[Q_idxs], cam_params[cam_idxs])
     # cnt = 0
-    # for proj in range(0, len(qs_proj)):
-    #     if abs(qs_proj[proj][0]) > 100 or abs(qs_proj[proj][1]) > 100:# or proj == 204:
+    residual = (qs_proj - qs).ravel() # Vægt
+
+
+    for proj in range(0, len(qs_proj)):
+        if abs(qs_proj[proj][0] - qs[proj][0])   qs_proj[proj][0]) > 100 or abs(qs_proj[proj][1]) > 100:# or proj == 204:
             # print("------------------------------")
             # print("image correspondance number: ",proj)
             # print("frame number: ", cam_idxs[proj])
@@ -137,6 +143,7 @@ def objective(params, n_cams, n_Qs, cam_idxs, Q_idxs, qs):
             # qs_proj[proj][1] = qs[proj][1]
     # print("number of outliers: ", cnt)
     residual = (qs_proj - qs).ravel() # Vægt
+    print("max error: ", np.max(residual))
     return residual
 
 
