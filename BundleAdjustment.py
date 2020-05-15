@@ -9,6 +9,10 @@ from transformation import *
 import cv2
 from scipy.spatial.transform import Rotation as R
 
+file = open("ourCache/equal_frames.txt", "r")
+first_image, second_image = map(int, file.readline().split())
+file.close()
+
 def load_data(file_name):
     number_of_frames = 1100
     return_val = np.empty((number_of_frames,6))
@@ -22,6 +26,7 @@ def load_data(file_name):
         return_val[j, 3] = tre
         return_val[j, 4] = fire
         return_val[j, 5] = fem
+
 
     return return_val.ravel()# np.reshape(return_val, ((-1, 1))).ravel()
 
@@ -68,7 +73,36 @@ def reindex(idxs):
     key_dict = {key: value for key, value in zip(keys, range(keys.shape[0]))}
     return [key_dict[idx] for idx in idxs]
 
+def objective_without_loop_closure(car_params):
+    """Compute residuals.
 
+    `params` contains camera parameters and 3-D coordinates.
+
+    cost function should create costs:
+    change of x high cost
+    change of y high cost
+    change of z low cost
+    rotation about x medium cost
+    rotation about y low cost
+    rotation about z high cost
+
+    when run due to loop closure, there should be an additional contraint that ensures that final frame is \
+    identical to initial frame
+    """
+    car_params_local = np.reshape(car_params,(-1,6))
+    x_cost=1
+    y_cost=1
+    z_cost=0.0005
+    rotx_cost=0.5
+    roty_cost=0.05
+    rotz_cost=1
+    cost = abs(car_params_local[:,0])*rotx_cost
+    cost += abs(car_params_local[:,1])*roty_cost
+    cost += abs(car_params_local[:,2])*rotz_cost
+    cost += abs(car_params_local[:,3])*x_cost
+    cost += abs(car_params_local[:,4])*y_cost
+    cost += (abs(car_params_local[:,5])-1)*z_cost #evt (car_params-1)*z_cost   , eller (car_params- (1/|rot_vec|))*z_cost
+    return cost
 
 def objective(car_params):
     """Compute residuals.
@@ -89,7 +123,7 @@ def objective(car_params):
     car_params_local = np.reshape(car_params,(-1,6))
     x_cost=1
     y_cost=1
-    z_cost=0.05
+    z_cost=0.0005
     rotx_cost=0.5
     roty_cost=0.05
     rotz_cost=1
@@ -99,68 +133,96 @@ def objective(car_params):
     cost += abs(car_params_local[:,3])*x_cost
     cost += abs(car_params_local[:,4])*y_cost
     cost += (abs(car_params_local[:,5])-1)*z_cost #evt (car_params-1)*z_cost   , eller (car_params- (1/|rot_vec|))*z_cost
-
     rel_tranny = [translation_and_rotation_vector_to_matrix(car_params_local[i][0:3],car_params_local[i][3:6]) for i in range(np.shape(car_params_local)[0])]
-    abs_tranny = np.eye(4)
-    abs_tranny = [np.matmul(abs_tranny,rtranny) for rtranny in rel_tranny]
-
-    cost_last = np.shape(car_params_local)[0]*np.sum(abs_tranny[-1][0:3,3])
-    final = R.from_matrix(abs_tranny[-1][0:3,0:3])
-    final_rotVec = final.as_rotvec()
-    cost_last += np.sum(final_rotVec)*np.shape(car_params_local)[0]
-    cost= np.hstack((cost,cost_last))
+    abs_tranny = np.full((len(rel_tranny)+1,4,4),np.eye(4))
+    for r in range(1, len(rel_tranny)+1):
+        abs_tranny[r] = np.matmul(abs_tranny[r-1], rel_tranny[r-1])
+    cost_trans = np.sum(np.abs(np.subtract(abs_tranny[0][0:3,3], abs_tranny[-1][0:3,3]))) * 1000
+    cost_rotm = np.sum(np.abs(np.subtract(100*abs_tranny[0][0:3,0:3], 100*abs_tranny[-1][0:3,0:3]))) * 1000
+    cost = np.hstack((cost,cost_trans))
+    cost = np.hstack((cost, cost_rotm))
     return cost
 
-
-
-def bundle_adjustment_sparsity(car_params):#n_cams, n_Qs, cam_idxs, Q_idxs):
-    m = np.shape(car_params)[0] +1  # number of residuals
-    n = np.shape(car_params)[0]*6  # number of parameters
+def bundle_adjustment_sparsity_without_loop_closure(car_params):#n_cams, n_Qs, cam_idxs, Q_idxs):
+    m = int(np.shape(car_params)[0]/6 )  # number of residuals
+    n = np.shape(car_params)[0]  # number of parameters
     A = lil_matrix((m, n), dtype=int)
 
-    i = np.arange(np.shape(car_params)[0])
+    i = np.arange(int(np.shape(car_params)[0]/6))
+    for s in range(6):
+        A[i, i * 6 + s] = 1
+
+
+
+    return A
+
+def bundle_adjustment_sparsity(car_params):#n_cams, n_Qs, cam_idxs, Q_idxs):
+    m = int(np.shape(car_params)[0]/6 + 2)  # number of residuals
+    n = np.shape(car_params)[0]  # number of parameters
+    A = lil_matrix((m, n), dtype=int)
+
+    i = np.arange(int(np.shape(car_params)[0]/6))
     for s in range(6):
         A[i, i * 6 + s] = 1
     for s in range(n):
         A[m - 1, s] = 1
+        A[m - 2, s] = 1
 
     return A
 
+def bundle_adjustment_with_sparsity_without_loop_closure(car_params, sparse_mat):#, Qs, cam_idxs, Q_idxs, qs, sparse_mat):
 
-def bundle_adjustment_with_sparsity(car_params, sparse_mat):#, Qs, cam_idxs, Q_idxs, qs, sparse_mat):
-    # params = np.hstack((cam_params.ravel(), Qs.ravel()))
-    # residual_init = objective(params, cam_params.shape[0], Qs.shape[0], cam_idxs, Q_idxs, qs)
-    print(np.shape(car_params))
-    residual_init = objective(car_params)
-
-    res = least_squares(objective, car_params, jac_sparsity=sparse_mat, verbose=2, x_scale='jac', ftol=1e-1, method='trf',
-                        args=(1101, car_params))
+    residual_init = objective_without_loop_closure(car_params)
+    res = least_squares(objective, car_params, jac_sparsity=sparse_mat, verbose=2, x_scale='jac', ftol=1e-1, method='trf')
     return residual_init, res.fun, res.x
 
+def bundle_adjustment_with_sparsity(car_params, sparse_mat):#, Qs, cam_idxs, Q_idxs, qs, sparse_mat):
 
+    residual_init = objective(car_params)
+    res = least_squares(objective, car_params, jac_sparsity=sparse_mat, verbose=2, x_scale='jac', ftol=1e-1, method='trf')
+    return residual_init, res.fun, res.x
+
+ # jac_sparsity=sparse_mat,
 def run_BA():
 
-    car_params = load_data("ourCache/cam_frames_relative.txt")
+    car_params= load_data("ourCache/cam_frames_relative.txt")
 
-    A = bundle_adjustment_sparsity(car_params)
+    car_params_new = car_params[(first_image*6):(second_image*6)]
+    A = bundle_adjustment_sparsity(car_params_new)
 
-    residual_init, residual_minimized, opt_params = bundle_adjustment_with_sparsity(car_params, A)
-    x = np.arange(2 * qs.shape[0])
+    residual_init, residual_minimized, opt_params = bundle_adjustment_with_sparsity(car_params_new, A)
+
+
+    car_params[(first_image * 6):(second_image * 6)] = opt_params
+
+    A_without_loop = bundle_adjustment_sparsity_without_loop_closure(car_params)
+
+    residual_init_without_loop, residual_minimized_without_loop, opt_params_without_loop = bundle_adjustment_with_sparsity_without_loop_closure(car_params, A_without_loop)
+
+    hep = np.reshape(opt_params_without_loop, (-1,6))
+
+    f = open("ourCache/optimized_paramters.txt", "w")
+    for val in hep:
+        for p in range(6):
+            f.write(str(val[p])+" ")
+        f.write("\n")
+    f.close()
+
+
+    # x = np.arange(int(car_params.shape[0]/6+1))
+    x = np.arange(len((first_image * 6),(second_image * 6)+1))
     plt.subplot(2, 1, 1)
     plt.title('Bundle adjustment with all parameters')
     plt.ylabel('Initial residuals')
-    plt.plot(x, residual_init)
+    plt.plot(2, residual_init)
 
     val = np.max(residual_init)
     idx = np.argmax(residual_init)
-
-    print(np.shape(opt_params))
 
     plt.subplot(2, 1, 2)
     plt.ylabel('Optimized residuals') #rasmus klump
     plt.plot(x, residual_minimized)
     plt.show()
-
 
 if __name__ == "__main__":
     run_BA()

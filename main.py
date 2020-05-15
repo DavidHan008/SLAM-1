@@ -99,6 +99,10 @@ def main():
         idx, val = bow.predict_previous(leftimages[i], i, bow_threshold)
         if val < 45 and val > 0:
             print("Frame: ", i, ". Val: ", val, ". idx: ", idx)
+
+            f = open("ourCache/equal_frames.txt", "w")
+            f.write(str(idx) + " " + str(i))
+            f.close()
             bow_threshold = i + 100
             new_transformation_mat = close_loop(leftimages[idx], rightimages[idx], leftimages[i], P_left, P_right,
                                                 K_left)
